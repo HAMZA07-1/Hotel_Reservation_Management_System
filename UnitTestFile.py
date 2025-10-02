@@ -10,7 +10,8 @@ class RoomTestCase(unittest.TestCase):
 
     #Intializaiton Test
     def test_room_initialization(self):
-        room = Room(101, "Non-Smoking", 4, 110, True)
+        room = Room(1, 101, "Non-Smoking", 4, 110, True)
+        self.assertEqual(room.room_id, 1)
         self.assertEqual(room.room_number, 101)
         self.assertEqual(room.room_type, "Non-Smoking")
         self.assertEqual(room.capacity, 4)
@@ -19,7 +20,7 @@ class RoomTestCase(unittest.TestCase):
 
     #Set Methods Test
     def test_room_update_methods(self):
-        room = Room(101, "Non-Smoking", 4, 110, True)
+        room = Room(1, 101, "Non-Smoking", 4, 110, True)
 
         room.set_number(101)
         self.assertEqual(room.room_number, 101)
@@ -71,7 +72,7 @@ class ReservationTest(unittest.TestCase):
 
     #Initialization Test
     def test_reservation_initialization(self):
-        room = Room(101, "Non-Smoking", 4, 110, True)
+        room = Room(1, 101, "Non-Smoking", 4, 110, True)
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567", "18111 Nordhoff Street Northridge, CA 91330")
         reservation = Reservation(1234, guest, room, datetime(2025,9,30), datetime(2025,10, 2))
         self.assertEqual(reservation.order_id, 1234)
@@ -82,7 +83,7 @@ class ReservationTest(unittest.TestCase):
 
     #Update Methods Test
     def test_reservation_update_methods(self):
-        room = Room(101, "Non-Smoking", 4, 110, True)
+        room = Room(1, 101, "Non-Smoking", 4, 110, True)
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567","18111 Nordhoff Street Northridge, CA 91330")
         reservation = Reservation(1234, guest, room, datetime(2025, 9, 30), datetime(2025, 10, 2))
 
@@ -91,7 +92,7 @@ class ReservationTest(unittest.TestCase):
         better_guest = Guest("Keano", "Aquino", 91853, "good.worker@hotmail.com", "408-249-5398", "1083 South Winchester Boulevard, San Jose CA 95128")
         reservation.set_guest(better_guest)
         self.assertEqual(reservation.guest, better_guest)
-        better_room = Room(202, "Smoking", 12, 500, False)
+        better_room = Room(2, 202, "Smoking", 12, 500, False)
         reservation.set_room(better_room)
         self.assertEqual(reservation.room, better_room)
         reservation.set_check_in_date(datetime(2025, 10, 31))

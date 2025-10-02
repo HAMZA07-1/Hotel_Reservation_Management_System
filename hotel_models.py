@@ -6,7 +6,8 @@ from datetime import datetime
 import sqlite3
 
 class Room:
-    def __init__(self, room_number, room_type, capacity, price, is_available):
+    def __init__(self, room_id, room_number, room_type, capacity, price, is_available):
+        self.room_id = room_id
         self.room_number = room_number
         self.room_type = room_type
         self.capacity = capacity
@@ -14,6 +15,8 @@ class Room:
         self.is_available = is_available
 
     #Set method
+    def set_room_id(self, room_id):
+        self.room_id = room_id
     def set_number(self, room_number):
         self.room_number = room_number
     def set_type(self, room_type):
