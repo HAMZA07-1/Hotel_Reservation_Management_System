@@ -30,16 +30,16 @@ class Room:
 
 
 class Reservation:
-    def __init__(self, order_id, guest, room, check_in_date, check_out_date):
-        self.order_id = order_id
+    def __init__(self, reservation_id, guest, room, check_in_date, check_out_date):
+        self.reservation_id = reservation_id
         self.guest = guest
         self.room = room
         self.check_in_date = check_in_date
         self.check_out_date = check_out_date
 
     #Set methods
-    def set_order_id(self, order_id):
-        self.order_id = order_id
+    def set_reservation_id(self, reservation_id):
+        self.reservation_id = reservation_id
     def set_guest(self, guest):
         self.guest = guest
     def set_room(self, room):
