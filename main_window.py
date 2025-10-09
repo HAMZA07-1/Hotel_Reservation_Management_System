@@ -1,0 +1,64 @@
+import tkinter as tk
+from tkinter import messagebox
+
+#main window properties
+root = tk.Tk()
+root.title("Hotel Reservation Management Project")
+root.geometry("600x400")
+root.config(bg="#395A7F")
+
+#Quit button function
+def quit_application():
+    root.quit()
+
+#Login credentials check
+def check_credentials():
+    username = entry_username.get()
+    password = entry_password.get()
+
+    if username == "admin" and password == "password":
+        login_frame.pack_forget()
+        show_home_screen()
+    else:
+        messagebox.showerror("Login Failed", "Invalid username or password")
+
+def show_login_screen():
+    global login_frame
+    # Frame for login details
+    login_frame = tk.Frame(root, bg="#395A7F")
+    login_frame.place(relx=0.5, rely=0.4, anchor="center")
+
+    #Welcome message
+    title_label = tk.Label(root, text="Welcome Hotel Employee",bg="#395A7F", fg="white", font=("Arial", 20, "bold"))
+    title_label.place(relx=0.5, rely=0.1, anchor="n")
+
+    # Username and Password Labels and Entries
+    label_username = tk.Label(login_frame, text="Username:", bg="#395A7F", fg="white")
+    label_username.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+
+    global entry_username
+    entry_username = tk.Entry(login_frame)
+    entry_username.grid(row=0, column=1, padx=10, pady=5)
+
+    label_password = tk.Label(login_frame, text="Password:", bg="#395A7F", fg="white")
+    label_password.grid(row=1, column=0, padx=10, pady=5)
+
+    global entry_password
+    entry_password = tk.Entry(login_frame, show="*")
+    entry_password.grid(row=1, column=1, padx=10, pady=5)
+
+    # Login and Quit buttons
+    login_button = tk.Button(login_frame, text="Login", command=check_credentials)
+    login_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+    quit_button = tk.Button(root, text="Quit", command=quit_application)
+    quit_button.place(relx=0.95, rely=0.95, anchor="se")
+
+
+#Function to display home screen
+def show_home_screen():
+    root.quit()
+
+#Program start
+show_login_screen()
+root.mainloop()
