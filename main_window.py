@@ -12,7 +12,7 @@ def quit_application():
     root.quit()
 
 #Login credentials check
-def check_credentials():
+def check_credentials(event=None):
     username = entry_username.get()
     password = entry_password.get()
 
@@ -32,6 +32,8 @@ def show_login_screen():
     title_label = tk.Label(root, text="Welcome Hotel Employee",bg="#395A7F", fg="white", font=("Arial", 20, "bold"))
     title_label.place(relx=0.5, rely=0.1, anchor="n")
 
+    root.bind("<Return>", lambda event: check_credentials())
+
     # Username and Password Labels and Entries
     label_username = tk.Label(login_frame, text="Username:", bg="#395A7F", fg="white")
     label_username.grid(row=0, column=0, padx=10, pady=5, sticky="w")
@@ -46,6 +48,8 @@ def show_login_screen():
     global entry_password
     entry_password = tk.Entry(login_frame, show="*")
     entry_password.grid(row=1, column=1, padx=10, pady=5)
+
+    #entry_password.bind("a", check_credentials())
 
     # Login and Quit buttons
     login_button = tk.Button(login_frame, text="Login", command=check_credentials)
