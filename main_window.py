@@ -49,8 +49,6 @@ def show_login_screen():
     entry_password = tk.Entry(login_frame, show="*")
     entry_password.grid(row=1, column=1, padx=10, pady=5)
 
-    #entry_password.bind("a", check_credentials())
-
     # Login and Quit buttons
     login_button = tk.Button(login_frame, text="Login", command=check_credentials)
     login_button.grid(row=2, column=0, columnspan=2, pady=10)
