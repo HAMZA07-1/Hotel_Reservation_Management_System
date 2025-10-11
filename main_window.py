@@ -59,7 +59,27 @@ def show_login_screen():
 
 #Function to display home screen
 def show_home_screen():
-    root.quit()
+    # Create a new window for the menu
+    menu_window = tk.Toplevel(root)
+    menu_window.title("Main Menu")
+    menu_window.geometry("400x350")
+    menu_window.config(bg="#395A7F")
+
+    # Title for the menu
+    menu_label = tk.Label(menu_window, text="Main Menu", bg="#395A7F", fg="white", font=("Arial", 18, "bold"))
+    menu_label.pack(pady=20)
+
+    # Reservations button
+    reservations_button = tk.Button(menu_window, text="Reservations", width=20, height=2)
+    reservations_button.pack(pady=10)
+
+    # Room Status button
+    room_status_button = tk.Button(menu_window, text="Room Status", width=20, height=2)
+    room_status_button.pack(pady=10)
+
+    # Booking Records button
+    booking_records_button = tk.Button(menu_window, text="Booking Records", width=20, height=2)
+    booking_records_button.pack(pady=10)
 
 #Program start
 show_login_screen()
