@@ -60,10 +60,8 @@ def show_login_screen():
 #Function to display home screen
 def show_home_screen():
     # Create a new window for the menu
-    menu_window = tk.Toplevel(root)
-    menu_window.title("Main Menu")
-    menu_window.geometry("400x350")
-    menu_window.config(bg="#395A7F")
+    menu_window = tk.Frame(root, bg="#395A7F")
+    menu_window.pack(fill="both", expand=True)
 
     # Title for the menu
     menu_label = tk.Label(menu_window, text="Main Menu", bg="#395A7F", fg="white", font=("Arial", 18, "bold"))
