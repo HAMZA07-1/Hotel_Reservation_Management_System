@@ -1,3 +1,4 @@
+
 """
 Hotel Management Application
 Room, Guest, and Reservation Classes
@@ -80,3 +81,4 @@ class DatabaseManager:
     def __init__(self, room_db, guest_db):
         self.room_db = room_db
         self.guest_db = guest_db
+
