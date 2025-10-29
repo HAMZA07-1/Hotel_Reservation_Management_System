@@ -3,6 +3,7 @@ from hotel_models import Room
 from hotel_models import Guest
 from hotel_models import Reservation
 from datetime import datetime
+import sqlite3
 
 #Test order: Room, Guest, Reservation
 #Room Test
@@ -99,6 +100,80 @@ class ReservationTest(unittest.TestCase):
         self.assertEqual(reservation.check_in_date, datetime(2025, 10, 31))
         reservation.set_check_out_date(datetime(2025, 11, 21))
         self.assertEqual(reservation.check_out_date, datetime(2025, 11, 21))
+
+#Database Schema Tests
+class TestDatabaseSchema(unittest.TestCase):
+    #Test Database connection
+    def setUp(self):
+        self.conn = sqlite3.connect('hotel.db')
+        self.cursor = self.conn.cursor()
+
+    def tearDown(self):
+        self.conn.close()
+
+    #Tests expected column data
+    def test_rooms_table_schema(self):
+        #Geting column info for rooms table
+        #Rooms
+        self.cursor.execute("PRAGMA table_info(rooms);")
+        columns = {col[1]: col[2] for col in self.cursor.fetchall()}
+
+        expected = {
+            "room_id": "INTEGER",
+            "room_number": "TEXT",
+            "room_type": "TEXT",
+            "smoking": "INTEGER",
+            "capacity": "INTEGER",
+            "price": "REAL",
+            "is_available": "INTEGER",
+        }
+        self.assertEqual(columns, expected)
+
+        #Guests
+    def test_guests_table_schema(self):
+        self.cursor.execute("PRAGMA table_info(guests);")
+        columns = {col[1]: col[2] for col in self.cursor.fetchall()}
+
+        expected = {
+            "guest_id": "INTEGER",
+            "first_name": "TEXT",
+            "last_name": "TEXT",
+            "email": "TEXT",
+            "phone": "TEXT",
+            "address": "TEXT",
+        }
+        self.assertEqual(columns, expected)
+
+    #Reservations
+    def test_reservations_table_schema(self):
+        self.cursor.execute("PRAGMA table_info(reservations);")
+        columns = {col[1]: col[2] for col in self.cursor.fetchall()}
+
+        expected = {
+            "reservation_id": "INTEGER",
+            "guest_id": "INTEGER",
+            "room_id": "INTEGER",
+            "check_in_date": "DATETIME",
+            "check_out_date": "DATETIME",
+            "total_price": "REAL",
+            "status": "TEXT",
+        }
+        self.assertEqual(columns, expected)
+
+    #Testing foreign keys for Reservation
+    def test_foreign_keys(self):
+        self.cursor.execute("PRAGMA foreign_key_list(reservations);")
+        fk_info = self.cursor.fetchall()
+
+        fk_tables = [(fk[2], fk[3],fk[4]) for fk in fk_info]
+
+        expected_fks = [
+            ('guests', 'guest_id', 'guest_id'),
+            ('rooms', 'room_id', 'room_id')
+        ]
+        self.assertEqual(fk_tables, expected_fks)
+
+
 
 
 
