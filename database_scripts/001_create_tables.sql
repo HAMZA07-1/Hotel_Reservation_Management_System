@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     check_in_date TEXT NOT NULL,
     check_out_date TEXT NOT NULL,
     total_price REAL NOT NULL, -- example: (price per night * nights) * (1 + tax rate)
-    status TEXT NOT NULL -- example: Confirmed, Cancelled, No show, Checked-in, Checked-out
+    status TEXT NOT NULL, -- example: Confirmed, Cancelled, No show, Checked-in, Checked-out
 
     -- Foreign Key Constraints (Links this table to Rooms and Guests)
     FOREIGN KEY (guest_id) REFERENCES guests(guest_id),
