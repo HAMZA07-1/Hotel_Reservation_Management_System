@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS rooms (
     room_id INTEGER PRIMARY KEY,
     room_number TEXT NOT NULL,
     room_type TEXT NOT NULL,
-    capacity INTEGER NOT NULL,
-    price REAL NOT NULL,
+    capacity INTEGER NOT NULL CHECK (capacity >= 1),
+    price REAL NOT NULL CHECK (price > 0),
     is_available INTEGER NOT NULL
 );
 
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     reservation_id INTEGER PRIMARY KEY,
     guest_id INTEGER NOT NULL,
     room_id INTEGER NOT NULL,
-    check_in_date TEXT NOT NULL,
-    check_out_date TEXT NOT NULL,
+    check_in_date DATETIME NOT NULL,
+    check_out_date DATETIME NOT NULL,
     total_price REAL NOT NULL, -- example: (price per night * nights) * (1 + tax rate)
     status TEXT NOT NULL, -- example: Confirmed, Cancelled, No show, Checked-in, Checked-out
 
@@ -45,3 +45,10 @@ CREATE TABLE IF NOT EXISTS reservations (
     FOREIGN KEY (guest_id) REFERENCES guests(guest_id),
     FOREIGN KEY (room_id) REFERENCES rooms(room_id)
 );
+
+-- 3a. RESERVATIONS indexes to improve query performance
+CREATE INDEX IF NOT EXISTS idx_reservations_guest_id
+ON reservations (guest_id)
+
+CREATE INDEX IF NOT EXISTS ids_reservations_room_id
+ON reservations (room_id)
