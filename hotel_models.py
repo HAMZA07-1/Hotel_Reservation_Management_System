@@ -31,12 +31,16 @@ class Room:
 
 
 class Reservation:
-    def __init__(self, reservation_id, guest, room, check_in_date, check_out_date):
+    STATUSES = ("Confirmed", "Checked-in", "Checked-out", "Cancelled", "No-show") #Revise later if all of these are needed
+
+    def __init__(self, reservation_id, guest, room, check_in_date, check_out_date, status="Confirmed", total_price=None):
         self.reservation_id = reservation_id
         self.guest = guest
         self.room = room
         self.check_in_date = check_in_date
         self.check_out_date = check_out_date
+        self.set_status(status)
+        self.total_price = total_price
 
     #Set methods
     def set_reservation_id(self, reservation_id):
@@ -49,6 +53,10 @@ class Reservation:
         self.check_in_date = check_in_date
     def set_check_out_date(self, check_out_date):
         self.check_out_date = check_out_date
+    def set_status(self, status):
+        if status not in self.STATUSES:
+            raise ValueError(f"Invalid Status: {status}")
+        self.status = status
 
 
 class Guest:
