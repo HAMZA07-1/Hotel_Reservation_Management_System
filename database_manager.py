@@ -199,6 +199,8 @@ class DatabaseManager:
 
     def explain_query_plan(self, query, params=()):
         #Prints the query plan for debugging
+        #Command example: db = DatabaseManager("hotel.db")
+        #db.explain_query_plan("SELECT * FROM reservations WHERE room_number = ?", (101,))
         try:
             conn = self.connect()
             cur = conn.cursor()
