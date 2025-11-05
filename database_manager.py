@@ -174,4 +174,25 @@ class DatabaseManager:
         conn.close()
 
         return conflict is None
-    
+
+    def get_all_reservations(self):
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT reservation_id, guest_id, room_id, check_in_date, check_out_date, total_price, status
+                FROM reservations
+                ORDER BY reservation_id DESC
+            """)
+
+            rows = cursor.fetchall()
+            column_names = [description[0] for description in cursor.description]
+
+            return [dict(zip(column_names, row)) for row in rows]
+
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            return []
+        finally:
+            conn.close()
