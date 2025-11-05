@@ -196,3 +196,16 @@ class DatabaseManager:
             return []
         finally:
             conn.close()
+
+    def explain_query_plan(self, query, params=()):
+        #Prints the query plan for debugging
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+            cur.execute(f"EXPLAIN QUERY PLAN {query}", params)
+            for row in cur.fetchall():
+                print(row)
+        except sqlite3.Error as e:
+            print("Error explaining query plan:", e)
+        finally:
+            conn.close()
