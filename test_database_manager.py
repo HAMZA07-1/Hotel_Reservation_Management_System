@@ -64,6 +64,62 @@ class TestDatabaseManager(unittest.TestCase):
 
         self.assertIsNotNone(guest)
         self.assertEqual(guest[1], "Hamza")
+    
+    def test_insert_room(self):
+        # insert a room and verify it can be retrieved
+        self.db.add_room(room_number=101, room_type='Single', capacity=1, price=50.0, available=1)
+        room = self.db.get_room(room_number=101)
+        self.assertIsNotNone(room)
+        self.assertEqual(int(room['room_number']), 101)
+        self.assertEqual(room['room_type'], 'Single')
+        self.assertEqual(int(room['capacity']), 1)
+    
+    def test_insert_reservation(self):
+        # create a guest and room, then insert a reservation
+        self.db.add_guest('Alice', 'Smith', 'alice@example.com', '123', '1 Road')
+        guest = self.db.get_guest(email='alice@example.com')
+        self.assertIsNotNone(guest)
+
+        self.db.add_room(room_number=201, room_type='Double', capacity=2, price=80.0, available=1)
+        room = self.db.get_room(room_number=201)
+        self.assertIsNotNone(room)
+
+        res_id = self.db.add_reservation(
+            guest_id=guest['guest_id'],
+            room_id=room['room_id'],
+            check_in_date='2025-12-01',
+            check_out_date='2025-12-05',
+            total_price=320.0,
+            status='Confirmed'
+        )
+
+    def test_is_room_available(self):
+        # create guest and room
+        self.db.add_guest('Bob', 'Jones', 'bob@example.com', '555', '2 Street')
+        guest = self.db.get_guest(email='bob@example.com')
+
+        self.db.add_room(room_number=301, room_type='Suite', capacity=4, price=200.0, available=1)
+        room = self.db.get_room(room_number=301)
+
+        # initially available
+        self.assertTrue(self.db.is_room_available(room_number=301))
+
+        # create a confirmed reservation that blocks 2025-11-10 to 2025-11-15
+        self.db.add_reservation(
+            guest_id=guest['guest_id'],
+            room_id=room['room_id'],
+            check_in_date='2025-11-10',
+            check_out_date='2025-11-15',
+            total_price=1000.0,
+            status='Confirmed'
+        )
+
+        # overlapping ranges should be unavailable
+        self.assertFalse(self.db.is_room_available(room_number=301, check_in_date='2025-11-12', check_out_date='2025-11-13'))
+
+        # adjacent non-overlapping ranges should be available
+        self.assertTrue(self.db.is_room_available(room_number=301, check_in_date='2025-11-15', check_out_date='2025-11-20'))
+
 
 if __name__ == "__main__":
     unittest.main()

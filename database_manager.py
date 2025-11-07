@@ -65,6 +65,18 @@ class DatabaseManager:
                 phone TEXT,
                 address TEXT
             );
+                          
+            CREATE TABLE IF NOT EXISTS reservations (
+                reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guest_id INTEGER NOT NULL,
+                room_id INTEGER NOT NULL,
+                check_in_date TEXT NOT NULL,
+                check_out_date TEXT NOT NULL,
+                total_price REAL NOT NULL,
+                status TEXT NOT NULL,
+                FOREIGN KEY (guest_id) REFERENCES guests(guest_id),
+                FOREIGN KEY (room_id) REFERENCES rooms(room_id)
+            );
         """)
         conn.commit()
         conn.close()
@@ -90,6 +102,20 @@ class DatabaseManager:
         """, (first_name, last_name, email, phone, address))
         conn.commit()
         conn.close()
+
+    def add_reservation(self, guest_id, room_id, check_in_date, check_out_date, total_price, status):
+        """Insert a new reservation record."""
+        conn = self.connect()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, total_price, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (guest_id, room_id, check_in_date, check_out_date, total_price, status))
+        conn.commit()
+        last_id = cur.lastrowid
+        conn.close()
+        return last_id
+
 
     def get_guest(self, guest_id = None, email = None):
         """get a guest via email or id"""
