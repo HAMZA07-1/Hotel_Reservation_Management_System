@@ -1,6 +1,5 @@
-.DS_Store
+hotel.db
 __pycache__/
 *.pyc
 *.db
-hotel_data.db
-
+*.sqlite
