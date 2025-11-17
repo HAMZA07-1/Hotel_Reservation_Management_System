@@ -81,13 +81,17 @@ def open_room_status_window(parent):
     # TABLE SET UP
     #------------------------
     # define the columns for the table
-    columns = ("room_id", "room_number", "room_type", "smoking", "capacity", "price", "is_available")
+    columns = ("edit", "room_id", "room_number", "room_type", "smoking", "capacity", "price", "is_available")
     tree = ttk.Treeview(win, columns=columns, show="headings", height=15)
     tree.pack(fill="both", expand=True)
 
-    for col, label in zip(columns, ["Room ID", "Room Number", "Room Type", "Smoking", "Capacity", "Price", "Available"]):
+    for col, label in zip(columns, ["Edit","Room ID", "Room Number", "Room Type", "Smoking", "Capacity", "Price", "Available"]):
         tree.heading(col, text=label)
-        tree.column(col, width=120)
+
+        if col == "edit":
+            tree.column(col, width=80, anchor="center")
+        else:
+            tree.column(col, width=120)
 
     #------------------------
     # PAGE SELECT
@@ -203,7 +207,7 @@ def open_room_status_window(parent):
             rows = cursor.fetchall()
 
             result_rows = rows = [
-                (r[0], r[1], r[2], "Yes" if r[3] == 1 else "No", r[4], r[5], "Yes" if r[6] == 1 else "No")
+                ("Edit", r[0], r[1], r[2], "Yes" if r[3] == 1 else "No", r[4], r[5], "Yes" if r[6] == 1 else "No")
                 for r in rows
             ]
 
@@ -217,6 +221,106 @@ def open_room_status_window(parent):
         current_page.set(1)
         update_page()
 
+    def on_tree_double_click(event):
+        region = tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        column_id = tree.identify_column(event.x)
+        row_id = tree.identify_row(event.y)
+        if not row_id:
+            return
+
+        if column_id != "#1":
+            return
+
+        item = tree.item(row_id)
+        values = item["values"]
+        if not values:
+            return
+
+        room_id = values[1]
+        current_price = values[6]
+        current_avail_str = values[7]
+
+        open_edit_popup(room_id, current_price, current_avail_str)
+
+
+    def open_edit_popup(room_id, current_price, current_avail_str):
+        popup = tk.Toplevel(win)
+        popup.title(f"Edit Room {room_id}")
+        popup.grab_set()
+
+        tk.Label(popup, text=f"Editing Room ID: {room_id}", font=("TkDefaultFont", 11, "bold")).grid(
+            row=0, column=0, columnspan=2, pady=(10, 10)
+        )
+
+        #-------------Price Field----------------
+        tk.Label(popup, text="Price:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+        price_var = tk.StringVar(value=str(current_price))
+        price_entry = tk.Entry(popup, textvariable=price_var, width=10)
+        price_entry.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+
+        #--------------Availability Dropdown--------------
+        tk.Label(popup, text="Availability:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+        avail_var = tk.StringVar()
+        avail_dropdown = ttk.Combobox(
+            popup,
+            textvariable  = avail_var,
+            values = ["Available", "Unavailable"],
+            state = "readonly",
+            width = 12
+        )
+        initial_avail = "Available" if current_avail_str == "Yes" else "Unavailable"
+        avail_var.set(initial_avail)
+        avail_dropdown.grid(row=2, column=1, sticky="w", padx=5, pady=5)
+
+        #Buttons
+        button_frame = tk.Frame(popup)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
+
+        def save_changes():
+            try:
+                new_price = float(price_var.get())
+            except ValueError:
+                print("Invalid Price")
+                return
+
+            new_avail = avail_var.get()
+            if new_avail == "Available":
+                new_avail = 1
+            else:
+                new_avail = 0
+
+            try:
+                conn = sqlite3.connect("hotel.db")
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE rooms SET price = ?, is_available = ? WHERE room_id = ?",
+                    (new_price, new_avail, room_id)
+                )
+                conn.commit()
+            except sqlite3.Error as e:
+                print("Database error:", e)
+            finally:
+                if conn:
+                    conn.close()
+
+            popup.destroy()
+            load_data()
+
+        save_btn = tk.Button(button_frame, text="Save", command= save_changes)
+        save_btn.pack(side="left", padx=5)
+
+        cancel_btn = tk.Button(button_frame, text="Cancel", command=popup.destroy)
+        cancel_btn.pack(side="left", padx=5)
+
+        price_entry.focus_set()
+
+
+
+
+
     # ------------------------------
     # KEYBOARD SHORTCUTS
     #-------------------------------
@@ -224,6 +328,7 @@ def open_room_status_window(parent):
     win.bind("<Left>", lambda e: change_page(-1)) #change pages with left and right arrows
     win.bind("<Right>", lambda e: change_page(1))
     room_number_entry.bind("<Return>", lambda e: load_data()) #Room Number search with Enter key
+    tree.bind("<Double-1>", on_tree_double_click)
 
     load_data()
     return win
