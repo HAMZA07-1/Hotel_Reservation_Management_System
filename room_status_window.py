@@ -12,7 +12,7 @@ def open_room_status_window(parent):
     # Window Properties
     win = tk.Toplevel(parent)
     win.title("Room Status")
-    win.geometry("1000x650")
+    win.geometry("1000x550")
     win.config(bg="#395A7F")
 
     #Main title
@@ -22,8 +22,9 @@ def open_room_status_window(parent):
 
     #ttk Style for optics
     style = ttk.Style()
-    style.configure("Treeview", font=("TkDefaultFont", 11), rowheight=28)
-    style.configure("Treeview.Heading", font=("TkDefaultFont", 12, "bold"))
+    style.configure("Treeview", font=("TkDefaultFont", 15), rowheight=40)
+    style.configure("Treeview.Heading", font=("TkDefaultFont", 13, "bold"))
+
 
     #--------------------
     # FILTER BAR
@@ -77,21 +78,32 @@ def open_room_status_window(parent):
     refresh_btn = tk.Button(filter_frame, text="Filter", command=lambda: load_data())
     refresh_btn.pack(side="right", padx=10)
 
+
     #------------------------
     # TABLE SET UP
     #------------------------
     # define the columns for the table
+    table_frame = tk.Frame(win)
+    table_frame.pack(fill="both", expand=True)
     columns = ("edit", "room_id", "room_number", "room_type", "smoking", "capacity", "price", "is_available")
-    tree = ttk.Treeview(win, columns=columns, show="headings", height=15)
+    tree = ttk.Treeview(win, columns=columns, show="headings", height=10)
     tree.pack(fill="both", expand=True)
 
+    #Colums set with official names and even widths except Edit
     for col, label in zip(columns, ["Edit","Room ID", "Room Number", "Room Type", "Smoking", "Capacity", "Price", "Available"]):
         tree.heading(col, text=label)
 
         if col == "edit":
             tree.column(col, width=80, anchor="center")
+        elif col == "room_type":
+            tree.column(col, width= 220)
         else:
             tree.column(col, width=120)
+
+    #Tag styles for available and unavailable rooms
+    tree.tag_configure("avail_yes", foreground="green", background="#eaffea")
+    tree.tag_configure("avail_no", foreground="red", background="#ffecec")
+
 
     #------------------------
     # PAGE SELECT
@@ -104,11 +116,13 @@ def open_room_status_window(parent):
     rows_per_page = 10
     result_rows = []
 
+    #Format: < Page _ out of _ >
     prev_btn = tk.Button(page_frame, text="<", command=lambda: change_page(-1))
     prev_btn.pack(side="left", padx=5)
 
     tk.Label(page_frame,text="Page").pack(side="left", padx=(10,5))
 
+    #Text input for first number that can be typed in
     page_entry=tk.Entry(page_frame, width=4, justify="center")
     page_entry.insert(0,"1")
     page_entry.pack(side="left")
@@ -116,6 +130,8 @@ def open_room_status_window(parent):
     max_page_label = tk.Label(page_frame, text="of 1")
     max_page_label.pack(side="left", padx=(5,20))
 
+    #---------------Go to page------------------
+    #Called when page number is changed either by buttons or text input + enter
     def go_to_page(*args):
         try:
             new_page = int(page_entry.get())
@@ -132,7 +148,8 @@ def open_room_status_window(parent):
         update_page()
 
 
-
+    #----------------Update Page--------------------
+    #Updates the page numbers
     def change_page(amount):
         new_page = current_page.get() + amount
         max_page = max(1, (len(result_rows) -1) // rows_per_page + 1)
@@ -144,9 +161,11 @@ def open_room_status_window(parent):
     next_btn = tk.Button(page_frame, text=">", command = lambda: change_page(1))
     next_btn.pack(side="left", padx=5)
 
+
     #------------------------------
     # UPDATE CURRENT PAGE
     #------------------------------
+    #Updated content on page currently in view
     def update_page():
         tree.delete(*tree.get_children())
 
@@ -155,7 +174,14 @@ def open_room_status_window(parent):
         end = start + rows_per_page
 
         for row in result_rows[start:end]:
-            tree.insert("", tk.END, values=row)
+            availability_str = row[-1]
+
+            if availability_str == "Yes":
+                tag = "avail_yes"
+            else:
+                tag = "avail_no"
+
+            tree.insert("", tk.END, values=row, tags=(tag,))
 
         max_page = max(1, ((len(result_rows) + 10) // rows_per_page))
         page_entry.delete(0, tk.END)
@@ -166,6 +192,8 @@ def open_room_status_window(parent):
     #-------------------------------
     # DATA LOADING FUNCTION
     #-------------------------------
+    #Loads data from database, needs to be implemented into database_manager.py in future update
+    #Builds query based on filter flags
     def load_data():
         nonlocal result_rows
         result_rows = []
@@ -221,6 +249,11 @@ def open_room_status_window(parent):
         current_page.set(1)
         update_page()
 
+
+    #----------------------------------
+    # EDIT POP UP WINDOW
+    #----------------------------------
+    #Event triggered by double-clicking on edit on a tree entry
     def on_tree_double_click(event):
         region = tree.identify("region", event.x, event.y)
         if region != "cell":
@@ -245,7 +278,7 @@ def open_room_status_window(parent):
 
         open_edit_popup(room_id, current_price, current_avail_str)
 
-
+    #------------------Edit Room pop up window-------------------
     def open_edit_popup(room_id, current_price, current_avail_str):
         popup = tk.Toplevel(win)
         popup.title(f"Edit Room {room_id}")
@@ -275,10 +308,11 @@ def open_room_status_window(parent):
         avail_var.set(initial_avail)
         avail_dropdown.grid(row=2, column=1, sticky="w", padx=5, pady=5)
 
-        #Buttons
+        #----------------Buttons Frame----------------------
         button_frame = tk.Frame(popup)
         button_frame.grid(row=3, column=0, columnspan=2, pady=10)
 
+        #Reads new values from price_var and avail_var and attempts to apply them
         def save_changes():
             try:
                 new_price = float(price_var.get())
@@ -309,6 +343,7 @@ def open_room_status_window(parent):
             popup.destroy()
             load_data()
 
+        #----------------------Buttons on bottom of pop up -------------------------
         save_btn = tk.Button(button_frame, text="Save", command= save_changes)
         save_btn.pack(side="left", padx=5)
 
@@ -316,9 +351,6 @@ def open_room_status_window(parent):
         cancel_btn.pack(side="left", padx=5)
 
         price_entry.focus_set()
-
-
-
 
 
     # ------------------------------
