@@ -32,7 +32,14 @@ def open_room_status_window(parent):
     filter_frame.pack(fill="x", pady=10)
     filter_frame.config(bg="#395A7F")
 
-    #----------Avaliable Checkbox: Checked by default-----------
+    #----------------Room Number Search-----------------
+    tk.Label(filter_frame, text="Room Number:").pack(side="left", padx=(20,5))
+
+    room_number_var=tk.StringVar()
+    room_number_entry = tk.Entry(filter_frame, textvariable=room_number_var, width=8)
+    room_number_entry.pack(side="left", padx=5)
+
+    #----------Available Checkbox: Checked by default-----------
     available_var = tk.BooleanVar(value=True)
 
     available_check = tk.Checkbutton(filter_frame, text="Available", variable=available_var)
@@ -120,10 +127,6 @@ def open_room_status_window(parent):
         current_page.set(new_page)
         update_page()
 
-    #--------------Keyboard Shortcuts----------------
-    page_entry.bind("<Return>", go_to_page)
-    win.bind("<Left>", lambda e: change_page(-1))
-    win.bind("<Right>", lambda e: change_page(1))
 
 
     def change_page(amount):
@@ -150,7 +153,7 @@ def open_room_status_window(parent):
         for row in result_rows[start:end]:
             tree.insert("", tk.END, values=row)
 
-        max_page = max(1, (len(result_rows) -1 // rows_per_page + 1))
+        max_page = max(1, ((len(result_rows) + 10) // rows_per_page))
         page_entry.delete(0, tk.END)
         page_entry.insert(0, str(page))
         max_page_label.config(text=f"of {max_page}")
@@ -169,6 +172,11 @@ def open_room_status_window(parent):
 
             query = "SELECT room_id, room_number, room_type, smoking, capacity, price, is_available from rooms WHERE 1=1"
             params = []
+
+        # Room Number Text Check
+            if room_number_var.get().strip() != "":
+                query += " AND room_number LIKE ?"
+                params.append(f"%{room_number_var.get().strip()}%")
 
         #Available checkbox check
             if available_var.get():
@@ -208,6 +216,14 @@ def open_room_status_window(parent):
 
         current_page.set(1)
         update_page()
+
+    # ------------------------------
+    # KEYBOARD SHORTCUTS
+    #-------------------------------
+    page_entry.bind("<Return>", go_to_page) #Enter to search on page select
+    win.bind("<Left>", lambda e: change_page(-1)) #change pages with left and right arrows
+    win.bind("<Right>", lambda e: change_page(1))
+    room_number_entry.bind("<Return>", lambda e: load_data()) #Room Number search with Enter key
 
     load_data()
     return win
