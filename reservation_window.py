@@ -1,87 +1,137 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from database_manager import DatabaseManager
 
-# setup db object for running queries
-db = DatabaseManager()
-
-def open_reservation_window(parent):
-    """Opens the window that lets you view and add reservations."""
-
+def open_reservation_window(parent, db):
     win = tk.Toplevel(parent)
     win.title("Reservations")
-    win.geometry("750x500")
-    win.config(bg="#395A7F")
+    win.geometry("850x550")
+    win.config(bg="#2C3E50")  # matching theme
 
-    # ---------- Table to show reservations ----------
+    tk.Label(
+        win, text="Reservations",
+        bg="#2C3E50", fg="white",
+        font=("Arial", 18, "bold")
+    ).pack(pady=10)
+
+    # ---------------------------
+    # ----- TABLE -----
+    # ---------------------------
     cols = ("ID", "Guest", "Room", "Check-In", "Check-Out", "Total Price", "Status")
     table = ttk.Treeview(win, columns=cols, show="headings")
 
     for c in cols:
         table.heading(c, text=c)
-        table.column(c, width=95, anchor="center")
+        table.column(c, width=110, anchor="center")
 
-    table.pack(pady=20, fill="both", expand=True)
+    table.pack(pady=10, fill="both", expand=True)
 
-    # ---------- Function to refresh table ----------
+    # ---------------------------
+    # ----- REFRESH -----
+    # ---------------------------
     def refresh_data():
         for i in table.get_children():
             table.delete(i)
-        try:
-            data = db.get_all_reservations()
-            for row in data:
-                table.insert("", "end", values=row)
-        except Exception as e:
-            print("Error loading reservations:", e)
 
-    refresh_data()
+        data = db.view_reservations()
+        for row in data:
+            table.insert(
+                "",
+                "end",
+                values=(
+                    row["reservation_id"],
+                    row["guest_name"],
+                    row["room_number"],
+                    row["check_in_date"],
+                    row["check_out_date"],
+                    row["total_price"],
+                    row["status"]
+                )
+            )
 
-    # ---------- Input form for adding reservations ----------
-    form = tk.Frame(win, bg="#395A7F")
+    tk.Button(win, text="Refresh Table", command=refresh_data).pack(pady=5)
+
+    # ---------------------------
+    # ----- FORM -----
+    # ---------------------------
+    form = tk.Frame(win, bg="#34495E", padx=15, pady=15)
     form.pack(pady=10)
 
-    tk.Label(form, text="Guest ID:", bg="#395A7F", fg="white").grid(row=0, column=0, padx=5, pady=5)
-    guest_entry = tk.Entry(form, width=10)
-    guest_entry.grid(row=0, column=1)
+    labels = ["Guest ID:", "Room ID:", "Check-In:", "Check-Out:", "Total Price:", "Status:"]
+    entries = []
 
-    tk.Label(form, text="Room ID:", bg="#395A7F", fg="white").grid(row=0, column=2, padx=5)
-    room_entry = tk.Entry(form, width=10)
-    room_entry.grid(row=0, column=3)
+    for i, text in enumerate(labels):
+        tk.Label(form, text=text, fg="white", bg="#34495E").grid(row=i, column=0, pady=5, sticky="e")
+        entry = tk.Entry(form, width=15)
+        entry.grid(row=i, column=1, pady=5, padx=10)
+        entries.append(entry)
 
-    tk.Label(form, text="Check-In:", bg="#395A7F", fg="white").grid(row=1, column=0, padx=5, pady=5)
-    checkin_entry = tk.Entry(form, width=12)
-    checkin_entry.grid(row=1, column=1)
+    guest_entry, room_entry, checkin_entry, checkout_entry, price_entry, status_entry = entries
 
-    tk.Label(form, text="Check-Out:", bg="#395A7F", fg="white").grid(row=1, column=2)
-    checkout_entry = tk.Entry(form, width=12)
-    checkout_entry.grid(row=1, column=3)
-
-    tk.Label(form, text="Total Price:", bg="#395A7F", fg="white").grid(row=2, column=0, padx=5, pady=5)
-    price_entry = tk.Entry(form, width=12)
-    price_entry.grid(row=2, column=1)
-
-    tk.Label(form, text="Status:", bg="#395A7F", fg="white").grid(row=2, column=2)
-    status_entry = tk.Entry(form, width=12)
-    status_entry.grid(row=2, column=3)
-
-    # ---------- Add reservation ----------
+    # ---------------------------
+    # ----- ADD -----
+    # ---------------------------
     def add_reservation():
         try:
-            g_id = int(guest_entry.get())
-            r_id = int(room_entry.get())
+            g = int(guest_entry.get())
+            r = int(room_entry.get())
             total = float(price_entry.get())
-            check_in = checkin_entry.get()
-            check_out = checkout_entry.get()
-            status = status_entry.get()
-
-            db.add_reservation(g_id, r_id, check_in, check_out, total, status)
-            db.change_room_status(r_id, 0)
-
-            messagebox.showinfo("Added", "Reservation added successfully!")
+            db.add_reservation(g, r, checkin_entry.get(), checkout_entry.get(), total, status_entry.get())
             refresh_data()
+            messagebox.showinfo("Added", "Reservation added successfully!")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to add reservation:\n{e}")
+            messagebox.showerror("Error", e)
 
-    # ---------- Buttons ----------
-    tk.Button(win, text="Add Reservation", command=add_reservation).pack(pady=8)
-    tk.Button(win, text="Refresh Table", command=refresh_data).pack(pady=4)
+    tk.Button(form, text="Add Reservation", width=15, command=add_reservation).grid(row=6, column=0, pady=10)
+
+    # ---------------------------
+    # ----- UPDATE -----
+    # ---------------------------
+    def update_reservation():
+        sel = table.focus()
+        if not sel:
+            messagebox.showwarning("No selection", "Select a reservation first.")
+            return
+        rid = int(table.item(sel, "values")[0])
+        db.update_reservation(
+            rid,
+            checkin_entry.get(),
+            checkout_entry.get(),
+            float(price_entry.get()),
+            status_entry.get(),
+        )
+        refresh_data()
+
+    tk.Button(form, text="Update Reservation", width=15, command=update_reservation).grid(row=6, column=1, pady=10)
+
+    # ---------------------------
+    # ----- CANCEL -----
+    # ---------------------------
+    def cancel_reservation():
+        sel = table.focus()
+        if not sel:
+            return
+        rid = int(table.item(sel, "values")[0])
+        db.cancel_reservation(rid, guest_id=1)
+        refresh_data()
+
+    tk.Button(form, text="Cancel Reservation", width=15, command=cancel_reservation).grid(row=7, column=0, columnspan=2, pady=10)
+
+    # ---------------------------
+    # ----- AUTO-FILL -----
+    # ---------------------------
+    def on_select(event):
+        sel = table.focus()
+        if not sel:
+            return
+        v = table.item(sel, "values")
+
+        guest_entry.delete(0, tk.END); guest_entry.insert(0, v[1])
+        room_entry.delete(0, tk.END); room_entry.insert(0, v[2])
+        checkin_entry.delete(0, tk.END); checkin_entry.insert(0, v[3])
+        checkout_entry.delete(0, tk.END); checkout_entry.insert(0, v[4])
+        price_entry.delete(0, tk.END); price_entry.insert(0, v[5])
+        status_entry.delete(0, tk.END); status_entry.insert(0, v[6])
+
+    table.bind("<<TreeviewSelect>>", on_select)
+
+    refresh_data()

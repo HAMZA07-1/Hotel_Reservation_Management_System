@@ -1,83 +1,154 @@
-
+import os
+from tkinter import ttk
+from database_manager import DatabaseManager
+from config import DB_PATH
 import tkinter as tk
 from tkinter import messagebox
-from reservation_window import open_reservation_window  
+from reservation_window import open_reservation_window
 from room_status_window import open_room_status_window
 
-# main window properties
+print("[Debug GUI] Using database at:", DB_PATH)
+
+db = DatabaseManager(DB_PATH)
+
+# main window
 root = tk.Tk()
-root.title("Hotel Reservation Management Project")
-root.geometry("600x400")
-root.config(bg="#395A7F")
+root.title("Hotel Reservation Management System")
+root.geometry("700x450")
+root.config(bg="#2C3E50")     # student friendly “hotel dark blue”
 
-def quit_application():
-    root.quit()
-
+# ---------------------------
+# LOGIN LOGIC
+# ---------------------------
 def check_credentials(event=None):
     username = entry_username.get()
     password = entry_password.get()
+    role = role_var.get()     # <-- USE the dropdown
 
-    if username == "admin" and password == "password":
-        login_frame.pack_forget()
+    # Manager login
+    if role == "Manager" and username == "admin" and password == "password":
         show_home_screen()
-    else:
-        messagebox.showerror("Login Failed", "Invalid username or password")
+        return
 
+    # Employee login
+    if role == "Employee" and username == "employee" and password == "1234":
+        show_employee_screen()
+        return
+
+    # Otherwise fail
+    messagebox.showerror("Login Failed", "Invalid username or password")
+
+# ---------------------------
+# LOGIN SCREEN
+# ---------------------------
 def show_login_screen():
-    global login_frame
-    login_frame = tk.Frame(root, bg="#395A7F")
-    login_frame.place(relx=0.5, rely=0.4, anchor="center")
+    global entry_username, entry_password, role_var
 
-    title_label = tk.Label(root, text="Welcome Hotel Employee", bg="#395A7F", fg="white", font=("Arial", 20, "bold"))
-    title_label.place(relx=0.5, rely=0.1, anchor="n")
+    # Clear window
+    for widget in root.winfo_children():
+        widget.destroy()
 
-    root.bind("<Return>", lambda event: check_credentials())
+    root.config(bg="#2C3E50")
 
-    tk.Label(login_frame, text="Username:", bg="#395A7F", fg="white").grid(row=0, column=0, padx=10, pady=5)
-    global entry_username
-    entry_username = tk.Entry(login_frame)
-    entry_username.grid(row=0, column=1, padx=10, pady=5)
+    tk.Label(
+        root,
+        text="Hotel Employee Login",
+        bg="#2C3E50", fg="white",
+        font=("Arial", 22, "bold")
+    ).pack(pady=30)
 
-    tk.Label(login_frame, text="Password:", bg="#395A7F", fg="white").grid(row=1, column=0, padx=10, pady=5)
-    global entry_password
-    entry_password = tk.Entry(login_frame, show="*")
-    entry_password.grid(row=1, column=1, padx=10, pady=5)
+    # Central frame
+    frame = tk.Frame(root, bg="#34495E", padx=25, pady=25)
+    frame.pack()
 
-    login_button = tk.Button(login_frame, text="Login", command=check_credentials)
-    login_button.grid(row=2, column=0, columnspan=2, pady=10)
+    # Username + password
+    tk.Label(frame, text="Username:", bg="#34495E", fg="white").grid(row=0, column=0, pady=8, padx=5)
+    tk.Label(frame, text="Password:", bg="#34495E", fg="white").grid(row=1, column=0, pady=8, padx=5)
 
-    quit_button = tk.Button(root, text="Quit", command=quit_application)
-    quit_button.place(relx=0.95, rely=0.95, anchor="se")
+    entry_username = tk.Entry(frame, width=20)
+    entry_username.grid(row=0, column=1, pady=8)
 
+    entry_password = tk.Entry(frame, width=20, show="*")
+    entry_password.grid(row=1, column=1, pady=8)
+
+    # Role selection
+    tk.Label(frame, text="Role:", bg="#34495E", fg="white").grid(row=2, column=0, pady=8, padx=5)
+
+    role_var = tk.StringVar()
+    role_dropdown = ttk.Combobox(frame, textvariable=role_var, state="readonly", width=18)
+    role_dropdown['values'] = ("Manager", "Employee")
+    role_dropdown.current(0)
+    role_dropdown.grid(row=2, column=1, pady=8)
+
+    # Login button
+    tk.Button(
+        frame,
+        text="Login",
+        width=12,
+        command=check_credentials
+    ).grid(row=3, column=0, columnspan=2, pady=15)
+
+    # Bind Enter
+    root.bind("<Return>", check_credentials)
+
+# ---------------------------
+# MAIN MENU
+# ---------------------------
+# ---------------------------
+# MAIN MENU
+# ---------------------------
 def show_home_screen():
-    menu_window = tk.Frame(root, bg="#395A7F")
-    menu_window.pack(fill="both", expand=True)
+    for widget in root.winfo_children():
+        widget.destroy()
 
-    menu_label = tk.Label(menu_window, text="Main Menu", bg="#395A7F", fg="white", font=("Arial", 18, "bold"))
-    menu_label.pack(pady=20)
+    tk.Label(
+        root,
+        text="Main Menu",
+        font=("Arial", 22, "bold"),
+        bg="#2C3E50",
+        fg="white"
+    ).pack(pady=30)
 
-    # Reservations button (opens new window)
-    reservations_button = tk.Button(menu_window, text="Reservations", width=20, height=2,
-                                    command=lambda: open_reservation_window(root))
-    reservations_button.pack(pady=10)
+    button_frame = tk.Frame(root, bg="#2C3E50")
+    button_frame.pack()
 
-    # Room Status button (opens the status window)
-    room_status_button = tk.Button(
-        menu_window, text="Room Status",
-        width=20, height=2,
-        command=lambda: open_room_status_window(root)
-    )
-    room_status_button.pack(pady=10)
+    tk.Button(button_frame, text="Reservations", width=20, height=2,
+              command=lambda: open_reservation_window(root, db)).pack(pady=10)
 
-    # Booking Records button (future)
-    booking_records_button = tk.Button(
-        menu_window, text="Booking Records",
-        width=20, height=2
-    )
-    booking_records_button.pack(pady=10)
+    tk.Button(button_frame, text="Room Status", width=20, height=2,
+              command=lambda: open_room_status_window(root)).pack(pady=10)
+
+    tk.Button(button_frame, text="Booking Records", width=20, height=2).pack(pady=10)
+
+    tk.Button(root, text="Logout", width=10, command=show_login_screen).pack(pady=40)
 
 
-# Start Program
+# ---------------------------
+# EMPLOYEE MENU
+# ---------------------------
+def show_employee_screen():
+    for widget in root.winfo_children():
+        widget.destroy()
+
+    tk.Label(
+        root,
+        text="Employee Menu",
+        font=("Arial", 22, "bold"),
+        bg="#2C3E50",
+        fg="white"
+    ).pack(pady=30)
+
+    button_frame = tk.Frame(root, bg="#2C3E50")
+    button_frame.pack()
+
+    tk.Button(button_frame, text="Reservations", width=20, height=2,
+              command=lambda: open_reservation_window(root, db)).pack(pady=10)
+
+    tk.Button(root, text="Logout", width=10, command=show_login_screen).pack(pady=40)
+
+
+# ---------------------------
+# START PROGRAM
+# ---------------------------
 show_login_screen()
 root.mainloop()
-

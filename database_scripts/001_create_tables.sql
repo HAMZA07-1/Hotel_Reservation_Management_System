@@ -1,13 +1,8 @@
-
 -- This script sets up the foundational database schema for the Hotel Reservation System.
--- It defines the core tables (Rooms, Guests, Reservations) needed for the MVP and beyond.
-
+-- It defines the core tables (Rooms, Guests, Reservations) needed for the MVP and sprint upgrades.
 
 -- 1. ROOMS TABLE
--- Defines the inventory of available hotel rooms.
-
 CREATE TABLE IF NOT EXISTS rooms (
-
     room_id INTEGER PRIMARY KEY,
     room_number TEXT NOT NULL,
     room_type TEXT NOT NULL,
@@ -17,37 +12,31 @@ CREATE TABLE IF NOT EXISTS rooms (
     is_available INTEGER NOT NULL CHECK (is_available IN (0, 1))
 );
 
--- 2. GUESTS TABLE (Initial Skeleton for Future Use)
--- Define the guests table needed for reservation logic in Sprint 2.
-
+-- 2. GUESTS TABLE
 CREATE TABLE IF NOT EXISTS guests (
     guest_id INTEGER PRIMARY KEY,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
-    email TEXT,
+    email TEXT NOT NULL,
     phone TEXT,
     address TEXT
 );
 
-
--- 3. RESERVATIONS TABLE (Initial Skeleton for Future Use)
--- Define the structure for future booking records (Sprint 2).
-
+-- 3. RESERVATIONS TABLE
 CREATE TABLE IF NOT EXISTS reservations (
     reservation_id INTEGER PRIMARY KEY,
     guest_id INTEGER NOT NULL,
     room_id INTEGER NOT NULL,
-    check_in_date DATETIME NOT NULL, -- 'YYYY-MM-DD'
-    check_out_date DATETIME NOT NULL, -- 'YYYY-MM-DD'
-    total_price REAL NOT NULL, -- example: (price per night * nights) * (1 + tax rate)
-    status TEXT NOT NULL, -- example: Confirmed, Cancelled, No show, Checked-in, Checked-out
+    check_in_date DATETIME NOT NULL,   -- 'YYYY-MM-DD'
+    check_out_date DATETIME NOT NULL,  -- 'YYYY-MM-DD'
+    total_price REAL NOT NULL,
+    status TEXT NOT NULL,              -- Confirmed, Cancelled, Checked-in, Checked-out
 
-    -- Foreign Key Constraints (Links this table to Rooms and Guests)
-    FOREIGN KEY (guest_id) REFERENCES guests(guest_id),
-    FOREIGN KEY (room_id) REFERENCES rooms(room_id)
+    FOREIGN KEY (guest_id) REFERENCES guests(guest_id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE
 );
 
--- 3a. RESERVATIONS indexes to improve query performance
+-- 3a. INDEXES FOR RESERVATIONS
 CREATE INDEX IF NOT EXISTS idx_reservations_guest_id
 ON reservations (guest_id);
 
