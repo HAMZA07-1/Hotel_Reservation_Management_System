@@ -8,16 +8,25 @@ db = DatabaseManager()
 
 
 def open_booking_records_window(parent=None):
-    """Show table of all the reservations in the database.
+    """Show table of all the reservations.
 
-    parent: optional parent window to attach the Toplevel to.
+    If `parent` is provided (e.g. the main `root`), this function will clear
+    `parent`'s contents and render the booking records UI inside it. If
+    `parent` is None, a new Toplevel window will be created (legacy fallback).
     """
 
-    # Window properties
-    booking_window = tk.Toplevel(parent) if parent is not None else tk.Toplevel()
-    booking_window.title("Booking Records")
-    booking_window.geometry("1000x550")
-    booking_window.config(bg="#395A7F")
+    # Decide container: either reuse parent (clearing its children) or create a Toplevel
+    if parent is not None:
+        # clear parent window so booking records take over main window area
+        for widget in parent.winfo_children():
+            widget.destroy()
+        container = parent
+        container.config(bg="#395A7F")
+    else:
+        container = tk.Toplevel()
+        container.title("Booking Records")
+        container.geometry("1000x550")
+        container.config(bg="#395A7F")
 
     # ttk style for table
     style = ttk.Style()
@@ -27,7 +36,7 @@ def open_booking_records_window(parent=None):
     # --------------------
     # FILTER BAR
     # --------------------
-    filter_frame = tk.Frame(booking_window)
+    filter_frame = tk.Frame(container)
     filter_frame.pack(fill="x", pady=8)
     filter_frame.config(bg="#395A7F")
 
@@ -59,7 +68,7 @@ def open_booking_records_window(parent=None):
     # ------------------------
     columns = ("reservation_id", "guest_id", "guest_name", "room_id", "room_number", "check_in", "check_out", "total_price", "status")
 
-    tree = ttk.Treeview(booking_window, columns=columns, show="headings", height=12)
+    tree = ttk.Treeview(container, columns=columns, show="headings", height=12)
     tree.pack(fill="both", expand=True, padx=10, pady=(0,10))
 
     headings = ["Res ID", "Guest ID", "Guest", "Room ID", "Room #", "Check-in", "Check-out", "Total", "Status"]
@@ -70,7 +79,7 @@ def open_booking_records_window(parent=None):
     # ------------------------
     # PAGINATION
     # ------------------------
-    page_frame = tk.Frame(booking_window)
+    page_frame = tk.Frame(container)
     page_frame.pack(fill="x", pady=6)
     page_frame.config(bg="#395A7F")
 
@@ -173,7 +182,28 @@ def open_booking_records_window(parent=None):
         current_page.set(1)
         update_page()
 
+    # Back button (only if rendered inside main window)
+    def go_back():
+        # If we rendered into the main `parent`, restore home screen by importing
+        # main_window.show_home_screen lazily to avoid circular imports. If container
+        # is a Toplevel just destroy it.
+        if parent is not None:
+            try:
+                # Avoid import at top to prevent cycles
+                from main_window import show_home_screen
+                show_home_screen()
+            except Exception:
+                # Fallback: destroy all widgets
+                for w in parent.winfo_children():
+                    w.destroy()
+        else:
+            container.destroy()
+
+    if parent is not None:
+        back_btn = tk.Button(container, text="Back", command=go_back)
+        back_btn.pack(pady=(6, 12))
+
     # Initial load
     load_data()
 
-    return booking_window
+    return container

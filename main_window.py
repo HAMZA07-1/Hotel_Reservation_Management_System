@@ -120,7 +120,7 @@ def show_home_screen():
               command=lambda: open_room_status_window(root)).pack(pady=10)
 
     tk.Button(button_frame, text="Booking Records", width=20, height=2,
-              command=lambda: open_booking_records_window()).pack(pady=10)
+              command=lambda: open_booking_records_window(root)).pack(pady=10)
 
     tk.Button(root, text="Logout", width=10, command=show_login_screen).pack(pady=40)
 
