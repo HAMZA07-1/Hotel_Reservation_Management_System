@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox
 from reservation_window import open_reservation_window
 from room_status_window import open_room_status_window
+from booking_records_window import open_booking_records_window
 
 print("[Debug GUI] Using database at:", DB_PATH)
 
@@ -118,7 +119,8 @@ def show_home_screen():
     tk.Button(button_frame, text="Room Status", width=20, height=2,
               command=lambda: open_room_status_window(root)).pack(pady=10)
 
-    tk.Button(button_frame, text="Booking Records", width=20, height=2).pack(pady=10)
+    tk.Button(button_frame, text="Booking Records", width=20, height=2,
+              command=lambda: open_booking_records_window()).pack(pady=10)
 
     tk.Button(root, text="Logout", width=10, command=show_login_screen).pack(pady=40)
 
