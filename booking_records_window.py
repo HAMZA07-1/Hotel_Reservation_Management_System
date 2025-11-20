@@ -174,7 +174,12 @@ def open_booking_records_window(parent=None):
             ]
 
         except sqlite3.Error as e:
-            print("Database error:", e)
+            # If the reservations table doesn't exist yet, show empty list instead of an error popup
+            msg = str(e).lower()
+            if "no such table" in msg:
+                result_rows = []
+            else:
+                print("Database error:", e)
         finally:
             if conn:
                 conn.close()

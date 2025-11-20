@@ -4,6 +4,7 @@ from database_manager import DatabaseManager
 from config import DB_PATH
 import tkinter as tk
 from tkinter import messagebox
+from metrics_window import open_metrics_window
 from reservation_window import open_reservation_window
 from room_status_window import open_room_status_window
 from booking_records_window import open_booking_records_window
@@ -121,6 +122,9 @@ def show_home_screen():
 
     tk.Button(button_frame, text="Booking Records", width=20, height=2,
               command=lambda: open_booking_records_window(root)).pack(pady=10)
+    
+    tk.Button(button_frame, text="Metrics", width=20, height=2,
+              command=lambda: open_metrics_window(root)).pack(pady=10)
 
     tk.Button(root, text="Logout", width=10, command=show_login_screen).pack(pady=40)
 
