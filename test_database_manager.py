@@ -99,7 +99,7 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertEqual(guest[1], "Hamza")
     
     def test_insert_room_lookup(self):
-        # insert a room and verify it can be retrieved
+        """insert a room and verify it can be retrieved"""
         self.db.add_room(room_number=102, room_type='Single', capacity=1, price=50.0, available=1)
         room = self.db.get_room(room_number=102)
         self.assertIsNotNone(room)
@@ -108,7 +108,7 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertEqual(int(room['capacity']), 1)
     
     def test_insert_reservation(self):
-        # create a guest and room, then insert a reservation
+        """create a guest and room, then insert a reservation"""
         self.db.add_guest('Alice', 'Smith', 'alice@example.com', '123', '1 Road')
         guest = self.db.get_guest(email='alice@example.com')
         self.assertIsNotNone(guest)
@@ -128,7 +128,7 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertIsInstance(res_id, int)
 
     def test_is_room_available(self):
-        # create guest and room
+        """create guest and room and test room availability"""
         self.db.add_guest('Bob', 'Jones', 'bob@example.com', '555', '2 Street')
         guest = self.db.get_guest(email='bob@example.com')
 

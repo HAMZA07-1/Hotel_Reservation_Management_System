@@ -172,6 +172,7 @@ def open_room_status_window(parent):
     #---------------Go to page------------------
     #Called when page number is changed either by buttons or text input + enter
     def go_to_page(*args):
+        """Called when page number is changed either by buttons or text input + enter."""
         try:
             new_page = int(page_entry.get())
         except ValueError:
@@ -190,6 +191,7 @@ def open_room_status_window(parent):
     #----------------Update Page--------------------
     #Updates the page numbers
     def change_page(amount):
+        """Updates the page numbers."""
         new_page = current_page.get() + amount
         max_page = max(1, (len(result_rows) -1) // rows_per_page + 1)
 
@@ -206,6 +208,7 @@ def open_room_status_window(parent):
     #------------------------------
     #Updated content on page currently in view
     def update_page():
+        """Updated content on page currently in view."""
         tree.delete(*tree.get_children())
 
         page = current_page.get()
@@ -234,6 +237,7 @@ def open_room_status_window(parent):
     #Loads data from database, needs to be implemented into database_manager.py in future update
     #Builds query based on filter flags
     def load_data():
+        """Loads data from database, needs to be implemented into database_manager.py in future update."""
         nonlocal result_rows
         result_rows = []
 
@@ -292,8 +296,8 @@ def open_room_status_window(parent):
     #----------------------------------
     # EDIT POP UP WINDOW
     #----------------------------------
-    #Event triggered by double-clicking on edit on a tree entry
     def on_tree_double_click(event):
+        """Event triggered by double-clicking on edit on a tree entry."""
         region = tree.identify("region", event.x, event.y)
         if region != "cell":
             return
@@ -319,6 +323,7 @@ def open_room_status_window(parent):
 
     #------------------Edit Room pop up window-------------------
     def open_edit_popup(room_id, current_price, current_avail_str):
+        """Opens a small modal dialog window that allows the user to change the price and availability of a selected room."""
         popup = tk.Toplevel(win)
         popup.title(f"Edit Room {room_id}")
         popup.grab_set()
@@ -351,8 +356,9 @@ def open_room_status_window(parent):
         button_frame = tk.Frame(popup)
         button_frame.grid(row=3, column=0, columnspan=2, pady=10)
 
-        #Reads new values from price_var and avail_var and attempts to apply them
+
         def save_changes():
+            """Reads new values from price_var and avail_var and attempts to apply them"""
             try:
                 new_price = float(price_var.get())
             except ValueError:

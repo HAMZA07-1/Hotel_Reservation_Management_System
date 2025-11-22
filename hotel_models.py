@@ -38,16 +38,22 @@ class Room:
 
     #Set method
     def set_room_id(self, room_id):
+        """Sets the room's ID."""
         self.room_id = room_id
     def set_number(self, room_number):
+        """Sets the room's number."""
         self.room_number = room_number
     def set_type(self, room_type):
+        """Sets the room's type."""
         self.room_type = room_type
     def set_capacity(self, capacity):
+        """Sets the room's capacity."""
         self.capacity = capacity
     def set_price(self, price):
+        """Sets the room's price."""
         self.price = price
     def set_available(self, is_available):
+        """Sets the room's availability."""
         self.is_available = is_available
 
 
@@ -65,16 +71,22 @@ class Reservation:
 
     #Set methods
     def set_reservation_id(self, reservation_id):
+        """Sets the reservation's ID."""
         self.reservation_id = reservation_id
     def set_guest(self, guest):
+        """Sets the guest for the reservation."""
         self.guest = guest
     def set_room(self, room):
+        """Sets the room for the reservation."""
         self.room = room
     def set_check_in_date(self, check_in_date):
+        """Sets the check-in date for the reservation."""
         self.check_in_date = check_in_date
     def set_check_out_date(self, check_out_date):
+        """Sets the check-out date for the reservation."""
         self.check_out_date = check_out_date
     def set_status(self, status):
+        """Sets the status of the reservation."""
         if status not in self.STATUSES:
             raise ValueError(f"Invalid Status: {status}")
         self.status = status
@@ -92,16 +104,22 @@ class Guest:
 
     #Set methods
     def set_first_name(self, first_name):
+        """Sets the guest's first name."""
         self.first_name = first_name
     def set_last_name(self, last_name):
+        """Sets the guest's last name."""
         self.last_name = last_name
     def set_guest_id(self, guest_id):
+        """Sets the guest's ID."""
         self.guest_id = guest_id
     def set_email(self, email):
+        """Sets the guest's email."""
         self.email = email
     def set_phone(self, phone):
+        """Sets the guest's phone number."""
         self.phone = phone
     def set_address(self, address):
+        """Sets the guest's address."""
         self.address = address
 
 

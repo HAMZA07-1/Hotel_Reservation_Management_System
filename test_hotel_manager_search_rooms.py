@@ -37,7 +37,10 @@ from hotel_manager import HotelManager
 
 
 class TestSearchRooms(unittest.TestCase):
+    """A test suite for the HotelManager's search_rooms method."""
+
     def setUp(self):
+        """Sets up a temporary database with seed data before each test."""
         # Create a temp file path (file pre-created; schema inspection will initialize if needed)
         fd, self.db_path = tempfile.mkstemp(prefix="search_rooms_", suffix=".db")
         os.close(fd)
@@ -86,6 +89,7 @@ class TestSearchRooms(unittest.TestCase):
         )
 
     def tearDown(self):
+        """Removes the temporary database file after each test."""
         if os.path.exists(self.db_path):
             try:
                 os.remove(self.db_path)
@@ -94,23 +98,28 @@ class TestSearchRooms(unittest.TestCase):
 
     @staticmethod
     def extract_numbers(rows):
+        """A helper function to extract and sort room numbers from a list of room rows."""
         return sorted([str(row["room_number"]) for row in rows])
 
     def test_basic_attribute_filters(self):
+        """Tests filtering by room type, smoking status, and availability."""
         rows = self.mgr.search_rooms(room_types=["Double", "Suite"], smoking=False, is_available=1)
         self.assertEqual(self.extract_numbers(rows), ["102", "202"])
 
     def test_room_number_like_case_insensitive(self):
+        """Tests case-insensitive substring search for room numbers."""
         rows = self.mgr.search_rooms(room_number_like="0")
         nums = self.extract_numbers(rows)
         self.assertTrue({"101", "102", "103", "201", "202"}.issubset(set(nums)))
 
     def test_capacity_and_price_range_with_swap_normalization(self):
+        """Tests that inverted min/max ranges for capacity and price are handled correctly."""
         rows = self.mgr.search_rooms(min_capacity=4, max_capacity=1, min_price=300, max_price=80)
         nums = self.extract_numbers(rows)
         self.assertTrue({"101", "102", "103", "201"}.issubset(set(nums)))
 
     def test_availability_mode_free_excludes_overlaps(self):
+        """Tests that the 'free' availability mode correctly excludes rooms with overlapping reservations."""
         rows = self.mgr.search_rooms(
             check_in="2025-12-10",
             check_out="2025-12-12",
@@ -120,6 +129,7 @@ class TestSearchRooms(unittest.TestCase):
         self.assertEqual(set(self.extract_numbers(rows)), {"101", "103"})
 
     def test_availability_mode_occupied_includes_only_overlaps(self):
+        """Tests that the 'occupied' availability mode correctly finds only rooms with overlapping reservations."""
         rows = self.mgr.search_rooms(
             check_in="2025-12-10",
             check_out="2025-12-12",
@@ -128,6 +138,7 @@ class TestSearchRooms(unittest.TestCase):
         self.assertEqual(set(self.extract_numbers(rows)), {"102", "202"})
 
     def test_availability_mode_all_ignores_dates(self):
+        """Tests that the 'all' availability mode ignores date overlaps and returns all matching rooms."""
         rows = self.mgr.search_rooms(
             check_in="2025-12-10",
             check_out="2025-12-12",
@@ -137,19 +148,23 @@ class TestSearchRooms(unittest.TestCase):
         self.assertEqual(set(self.extract_numbers(rows)), {"103", "202"})
 
     def test_is_available_flag_filters_inventory(self):
+        """Tests filtering for rooms that are marked as not available (e.g., for maintenance)."""
         rows = self.mgr.search_rooms(is_available=0)
         self.assertEqual(self.extract_numbers(rows), ["201"])
 
     def test_sorting_desc_capacity_then_tiebreaker(self):
+        """Tests that sorting by capacity in descending order works correctly."""
         rows = self.mgr.search_rooms(sort_by="capacity", sort_dir="desc")
         caps = [row["capacity"] for row in rows]
         self.assertEqual(caps, sorted(caps, reverse=True))
 
     def test_invalid_is_available_raises(self):
+        """Tests that providing an invalid value for 'is_available' raises a ValueError."""
         with self.assertRaises(ValueError):
             self.mgr.search_rooms(is_available=2)
 
     def test_partial_dates_ignored(self):
+        """Tests that providing only a check-in or check-out date ignores date-based availability filtering."""
         rows = self.mgr.search_rooms(check_in="2025-12-10")  # missing check_out -> date logic ignored
         self.assertEqual(len(rows), 5)
 

@@ -54,6 +54,7 @@ root.config(bg="#2C3E50")     # student friendly “hotel dark blue”
 # LOGIN LOGIC
 # ---------------------------
 def check_credentials(event=None):
+    """Validates the entered username and password against hardcoded values for the selected role."""
     username = entry_username.get()
     password = entry_password.get()
     role = role_var.get()     # <-- USE the dropdown
@@ -75,6 +76,7 @@ def check_credentials(event=None):
 # LOGIN SCREEN
 # ---------------------------
 def show_login_screen():
+    """Clears the main window and builds the login interface."""
     global entry_username, entry_password, role_var
 
     # Clear window
@@ -127,10 +129,8 @@ def show_login_screen():
 # ---------------------------
 # MAIN MENU
 # ---------------------------
-# ---------------------------
-# MAIN MENU
-# ---------------------------
 def show_home_screen():
+    """Displays the main menu for the 'Manager' role."""
     for widget in root.winfo_children():
         widget.destroy()
 
@@ -160,6 +160,7 @@ def show_home_screen():
 # EMPLOYEE MENU
 # ---------------------------
 def show_employee_screen():
+    """Displays the main menu for the 'Employee' role."""
     for widget in root.winfo_children():
         widget.destroy()
 

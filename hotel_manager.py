@@ -39,16 +39,17 @@ from typing import Optional, List
 from database_manager import DatabaseManager
 
 class HotelManager:
-# Handles hotel operations: room search, reservations, cancellations and pricing.
+    """Handles hotel operations: room search, reservations, cancellations and pricing."""
 
     def __init__(self, db_name: str | None = None):
+        """Initializes the HotelManager, creating a DatabaseManager instance."""
         if db_name:
             self.db = DatabaseManager(db_name)
         else:
             self.db = DatabaseManager()
 
-    # Private helper function, validates date text and calculates number of nights
     def _parse_dates(self, check_in: str, check_out: str) -> tuple[str, str, int]:
+        """Private helper function, validates date text and calculates number of nights."""
         ci = datetime.strptime(check_in, "%Y-%m-%d").date()
         co = datetime.strptime(check_out, "%Y-%m-%d").date()
         if ci >= co:
@@ -56,7 +57,6 @@ class HotelManager:
         nights = (co - ci).days
         return ci.isoformat(), co.isoformat(), nights
 
-    # Builds custom SQL query based on optional filters entered, returns a list of matching rooms
     def search_rooms(
         self,
         *,
@@ -75,7 +75,9 @@ class HotelManager:
         sort_by: str = "price",
         sort_dir: str = "asc",
     ) -> List[sqlite3.Row]:
-        """Search rooms for manager/employee workflows using attribute filters plus optional
+        """Builds custom SQL query based on optional filters entered, returns a list of matching rooms.
+
+        Search rooms for manager/employee workflows using attribute filters plus optional
         date-window overlap logic. All filters combine with logical AND.
 
         See user-provided specification for detailed behavior rules.
@@ -203,6 +205,7 @@ class HotelManager:
 
 
     def calculate_total_price(self, room_id: int, check_in: str, check_out: str) -> float:
+        """Calculates the total price for a stay based on the room's price and number of nights."""
         ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
         room = self.db.get_room(room_id=room_id)
         if room is None:
@@ -217,6 +220,7 @@ class HotelManager:
             check_in: str,
             check_out: str,
             status: str = "Confirmed") -> int:
+        """Creates a new reservation in the database with transactional safety."""
         ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
 
         if not self.db.guest_exists(guest_id=guest_id):

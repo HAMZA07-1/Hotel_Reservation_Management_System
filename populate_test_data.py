@@ -27,6 +27,7 @@ print("[Debug] Populating database at:", DB_PATH)
 db = DatabaseManager(DB_PATH)
 
 def main():
+    """Connects to the database and inserts a small set of test guests and reservations."""
     conn = db.connect()
     cur = conn.cursor()
 

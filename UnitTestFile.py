@@ -46,9 +46,11 @@ import sqlite3
 #Test order: Room, Guest, Reservation
 #Room Test
 class RoomTestCase(unittest.TestCase):
+    """Tests the Room data model class."""
 
     #Intializaiton Test
     def test_room_initialization(self):
+        """Tests the initialization of the Room class."""
         room = Room(1, 101, "Non-Smoking", 4, 110, True)
         self.assertEqual(room.room_id, 1)
         self.assertEqual(room.room_number, 101)
@@ -59,6 +61,7 @@ class RoomTestCase(unittest.TestCase):
 
     #Set Methods Test
     def test_room_update_methods(self):
+        """Tests the setter methods of the Room class."""
         room = Room(1, 101, "Non-Smoking", 4, 110, True)
 
         room.set_number(101)
@@ -78,9 +81,11 @@ class RoomTestCase(unittest.TestCase):
 
 #Guest Tests
 class GuestTestcase(unittest.TestCase):
+    """Tests the Guest data model class."""
 
     #Initialization Test
     def test_guest_initialization(self):
+        """Tests the initialization of the Guest class."""
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567", "18111 Nordhoff Street Northridge, CA 91330")
         self.assertEqual(guest.first_name, "Daniel")
         self.assertEqual(guest.last_name, "Sweet")
@@ -90,6 +95,7 @@ class GuestTestcase(unittest.TestCase):
 
     #Set Methods Test
     def test_guest_update_methods(self):
+        """Tests the setter methods of the Guest class."""
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567","18111 Nordhoff Street Northridge, CA 91330")
 
         guest.set_first_name("George")
@@ -108,9 +114,11 @@ class GuestTestcase(unittest.TestCase):
 
 #Reservation Tests
 class ReservationTest(unittest.TestCase):
+    """Tests the Reservation data model class."""
 
     #Initialization Test
     def test_reservation_initialization(self):
+        """Tests the initialization of the Reservation class."""
         room = Room(1, 101, "Non-Smoking", 4, 110, True)
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567", "18111 Nordhoff Street Northridge, CA 91330")
         reservation = Reservation(1234, guest, room, datetime(2025,9,30), datetime(2025,10, 2))
@@ -122,6 +130,7 @@ class ReservationTest(unittest.TestCase):
 
     #Update Methods Test
     def test_reservation_update_methods(self):
+        """Tests the setter methods of the Reservation class."""
         room = Room(1, 101, "Non-Smoking", 4, 110, True)
         guest = Guest("Daniel", "Sweet", 90137, "daniel.sweet.734@my.csun.edu", "818-123-4567","18111 Nordhoff Street Northridge, CA 91330")
         reservation = Reservation(1234, guest, room, datetime(2025, 9, 30), datetime(2025, 10, 2))
@@ -141,16 +150,20 @@ class ReservationTest(unittest.TestCase):
 
 #Database Schema Tests
 class TestDatabaseSchema(unittest.TestCase):
+    """Tests the live database schema to ensure it matches the design."""
     #Test Database connection
     def setUp(self):
+        """Sets up the database connection for the tests."""
         self.conn = sqlite3.connect('hotel.db')
         self.cursor = self.conn.cursor()
 
     def tearDown(self):
+        """Closes the database connection after the tests."""
         self.conn.close()
 
     #Tests expected column data
     def test_rooms_table_schema(self):
+        """Tests that the rooms table schema matches the expected structure."""
         #Geting column info for rooms table
         #Rooms
         self.cursor.execute("PRAGMA table_info(rooms);")
@@ -169,6 +182,7 @@ class TestDatabaseSchema(unittest.TestCase):
 
         #Guests
     def test_guests_table_schema(self):
+        """Tests that the guests table schema matches the expected structure."""
         self.cursor.execute("PRAGMA table_info(guests);")
         columns = {col[1]: col[2] for col in self.cursor.fetchall()}
 
@@ -184,6 +198,7 @@ class TestDatabaseSchema(unittest.TestCase):
 
     #Reservations
     def test_reservations_table_schema(self):
+        """Tests that the reservations table schema matches the expected structure."""
         self.cursor.execute("PRAGMA table_info(reservations);")
         columns = {col[1]: col[2] for col in self.cursor.fetchall()}
 
@@ -200,6 +215,7 @@ class TestDatabaseSchema(unittest.TestCase):
 
     #Testing foreign keys for Reservation
     def test_foreign_keys(self):
+        """Tests that the foreign keys in the reservations table are correctly defined."""
         self.cursor.execute("PRAGMA foreign_key_list(reservations);")
         fk_info = self.cursor.fetchall()
 
