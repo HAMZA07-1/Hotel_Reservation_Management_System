@@ -1,7 +1,33 @@
 """
-Database Manager Unit Tests
-Checks that SQLite connections, table creation, and CRUD operations work.
-This test uses a temporary database to avoid modifying real data.
+Module: test_database_manager.py
+Date: 11/21/2025
+Programmer(s): Hamza, Allen, Keano
+
+Brief Description:
+This module contains unit tests for the `DatabaseManager` class using Python's `unittest` framework. It verifies the correctness of the low-level database access layer, including connection management, schema creation, and all CRUD (Create, Read, Update, Delete) operations.
+
+Class: TestDatabaseManager
+Brief Description: A test suite that isolates the `DatabaseManager` for testing.
+
+Important Functions:
+- setUpClass() -> None
+  - Input: None
+  - Output: None
+  - Description: A `unittest` class method that runs once before all tests. It creates a temporary, separate database file (`test_hotel.db`) to ensure that the tests are isolated and do not affect the main development database.
+- tearDownClass() -> None
+  - Input: None
+  - Output: None
+  - Description: Runs once after all tests are complete to clean up by deleting the temporary database file.
+- test_...() methods: Each method tests a specific piece of functionality. For example:
+  - `test_table_creation()`: Verifies that the database initialization correctly creates the required tables.
+  - `test_insert_guest()` / `test_insert_room_lookup()`: Test the creation and subsequent retrieval of records.
+  - `test_is_room_available()`: A critical test that verifies the room availability logic by creating a reservation and then checking for availability during overlapping and non-overlapping date ranges.
+
+Important Data Structures:
+- In-memory/Temporary Database: The tests are executed against a temporary SQLite database (`test_hotel.db`) to ensure test isolation and prevent data corruption.
+
+Algorithms:
+- Test Isolation: The use of `setUpClass` and `tearDownClass` implements a standard testing pattern. It ensures that all tests run against a clean, predictable database state, making the test results reliable and repeatable. This is superior to running tests against a live, changing database.
 """
 
 import unittest
@@ -15,8 +41,15 @@ class TestDatabaseManager(unittest.TestCase):
     def setUpClass(cls):
         """Runs once before all tests — creates a temporary test DB file."""
         cls.test_db = "test_hotel.db"
+        # Remove file if lingering from previous runs for deterministic setup
+        if os.path.exists(cls.test_db):
+            try:
+                os.remove(cls.test_db)
+            except Exception:
+                pass
         cls.db_manager = DatabaseManager(db_name=cls.test_db)
-        cls.db_manager.create_tables()
+        # Provide simple alias used by some tests
+        cls.db = cls.db_manager
 
     @classmethod
     def tearDownClass(cls):
@@ -41,7 +74,7 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertIn("rooms", tables)
         self.assertIn("guests", tables)
 
-    def test_insert_room(self):
+    def test_insert_room_basic(self):
         """Test inserting a room record."""
         self.db_manager.add_room(101, "Single", 1, 80.0, True)
         conn = sqlite3.connect(self.test_db)
@@ -65,17 +98,17 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertIsNotNone(guest)
         self.assertEqual(guest[1], "Hamza")
     
-    def test_insert_room(self):
-        # insert a room and verify it can be retrieved
-        self.db.add_room(room_number=101, room_type='Single', capacity=1, price=50.0, available=1)
-        room = self.db.get_room(room_number=101)
+    def test_insert_room_lookup(self):
+        """insert a room and verify it can be retrieved"""
+        self.db.add_room(room_number=102, room_type='Single', capacity=1, price=50.0, available=1)
+        room = self.db.get_room(room_number=102)
         self.assertIsNotNone(room)
-        self.assertEqual(int(room['room_number']), 101)
+        self.assertEqual(int(room['room_number']), 102)
         self.assertEqual(room['room_type'], 'Single')
         self.assertEqual(int(room['capacity']), 1)
     
     def test_insert_reservation(self):
-        # create a guest and room, then insert a reservation
+        """create a guest and room, then insert a reservation"""
         self.db.add_guest('Alice', 'Smith', 'alice@example.com', '123', '1 Road')
         guest = self.db.get_guest(email='alice@example.com')
         self.assertIsNotNone(guest)
@@ -92,9 +125,10 @@ class TestDatabaseManager(unittest.TestCase):
             total_price=320.0,
             status='Confirmed'
         )
+        self.assertIsInstance(res_id, int)
 
     def test_is_room_available(self):
-        # create guest and room
+        """create guest and room and test room availability"""
         self.db.add_guest('Bob', 'Jones', 'bob@example.com', '555', '2 Street')
         guest = self.db.get_guest(email='bob@example.com')
 

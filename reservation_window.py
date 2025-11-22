@@ -1,3 +1,38 @@
+"""
+Module: reservation_window.py
+Date: 11/12/2025
+Programmer: hamza
+
+Description:
+This module defines the 'Reservations' window of the application, which allows users to view, add, update, and
+cancel reservations. It is built using Tkinter and the ttk.Treeview widget for displaying data in a table.
+
+Important Functions:
+- open_reservation_window(parent, db): The main function to create and display the reservation window.
+  Input: parent (tk.Widget), db (DatabaseManager).
+  Output: None.
+- refresh_data(): Clears the reservations table and reloads it by calling `db.view_reservations()`. This ensures
+  the displayed data is up-to-date.
+  Input: None.
+  Output: None.
+- add_reservation(): Reads data from the form entry fields and calls `db.add_reservation()` to create a new
+  record, then refreshes the table.
+  Input: None.
+  Output: None.
+- update_reservation(): Updates the selected reservation in the table with the data from the form fields.
+  Input: None.
+  Output: None.
+- cancel_reservation(): Marks the selected reservation's status as 'Cancelled'.
+  Input: None.
+  Output: None.
+- on_select(event): An event handler that auto-fills the form fields with the data from the reservation
+  selected in the table, making it easy to view or update.
+  Input: event (tk.Event).
+  Output: None.
+
+Important Data Structures:
+- table (ttk.Treeview): The central widget used to display the reservation data in a structured, tabular format.
+"""
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -29,6 +64,7 @@ def open_reservation_window(parent, db):
     # ----- REFRESH -----
     # ---------------------------
     def refresh_data():
+        """Clears the reservations table and reloads it with fresh data from the database."""
         for i in table.get_children():
             table.delete(i)
 
@@ -71,6 +107,7 @@ def open_reservation_window(parent, db):
     # ----- ADD -----
     # ---------------------------
     def add_reservation():
+        """Reads data from the form entry fields and creates a new reservation."""
         try:
             g = int(guest_entry.get())
             r = int(room_entry.get())
@@ -87,6 +124,7 @@ def open_reservation_window(parent, db):
     # ----- UPDATE -----
     # ---------------------------
     def update_reservation():
+        """Updates the selected reservation with the data from the form fields."""
         sel = table.focus()
         if not sel:
             messagebox.showwarning("No selection", "Select a reservation first.")
@@ -107,6 +145,7 @@ def open_reservation_window(parent, db):
     # ----- CANCEL -----
     # ---------------------------
     def cancel_reservation():
+        """Marks the selected reservation's status as 'Cancelled'."""
         sel = table.focus()
         if not sel:
             return
@@ -120,6 +159,7 @@ def open_reservation_window(parent, db):
     # ----- AUTO-FILL -----
     # ---------------------------
     def on_select(event):
+        """Fills the form fields with the data from the selected reservation."""
         sel = table.focus()
         if not sel:
             return

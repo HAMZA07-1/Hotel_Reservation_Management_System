@@ -1,3 +1,36 @@
+"""
+Module: main_window.py
+Date: 11/12/2025
+Programmer: Hamza
+
+Description:
+This module serves as the main entry point for the graphical user interface (GUI) of the Hotel Reservation
+Management System. It is built using the Tkinter library. It handles the initial application window, the login
+screen, and the main menu navigation for different user roles (Manager and Employee).
+
+Important Functions:
+- show_login_screen(): Clears the main window and builds the login interface, including input fields for
+  username/password and a dropdown for role selection.
+  Input: None.
+  Output: None.
+- check_credentials(event=None): Validates the entered username and password against hardcoded values for the
+  selected role. On success, it navigates to the appropriate home screen; on failure, it shows an error message.
+  Input: event (tk.Event, optional, for key bindings).
+  Output: None.
+- show_home_screen(): Displays the main menu for the 'Manager' role, with buttons to access different parts of
+  the application like Reservations and Room Status.
+  Input: None.
+  Output: None.
+- show_employee_screen(): Displays the main menu for the 'Employee' role.
+  Input: None.
+  Output: None.
+
+Important Data Structures:
+- root (tk.Tk): The main window object for the entire application.
+- db (DatabaseManager): A global instance of the DatabaseManager, passed to other windows to provide them with
+  database access.
+"""
+
 import os
 from tkinter import ttk
 from database_manager import DatabaseManager
@@ -23,6 +56,7 @@ root.config(bg="#2C3E50")     # student friendly “hotel dark blue”
 # LOGIN LOGIC
 # ---------------------------
 def check_credentials(event=None):
+    """Validates the entered username and password against hardcoded values for the selected role."""
     username = entry_username.get()
     password = entry_password.get()
     role = role_var.get()     # <-- USE the dropdown
@@ -44,6 +78,7 @@ def check_credentials(event=None):
 # LOGIN SCREEN
 # ---------------------------
 def show_login_screen():
+    """Clears the main window and builds the login interface."""
     global entry_username, entry_password, role_var
 
     # Clear window
@@ -96,10 +131,8 @@ def show_login_screen():
 # ---------------------------
 # MAIN MENU
 # ---------------------------
-# ---------------------------
-# MAIN MENU
-# ---------------------------
 def show_home_screen():
+    """Displays the main menu for the 'Manager' role."""
     for widget in root.winfo_children():
         widget.destroy()
 
@@ -133,6 +166,7 @@ def show_home_screen():
 # EMPLOYEE MENU
 # ---------------------------
 def show_employee_screen():
+    """Displays the main menu for the 'Employee' role."""
     for widget in root.winfo_children():
         widget.destroy()
 

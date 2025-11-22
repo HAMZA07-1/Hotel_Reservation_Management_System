@@ -1,5 +1,45 @@
+"""
+Module: database_manager.py
+Date: 11/21/2025
+Programmer: Keano, Daniel, Hamza, Allen
+
+Description:
+This module provides the DatabaseManager class, which encapsulates all direct interactions with the SQLite database.
+It is responsible for initializing the database schema, managing connections, and providing a low-level API for
+Create, Read, Update, and Delete (CRUD) operations on the core tables (rooms, guests, reservations). It abstracts
+the SQL logic away from the higher-level business logic.
+
+Important Functions:
+- create_if_missing(): Checks if the database exists and has the correct schema. If not, it runs SQL scripts to
+  create and populate the tables. This ensures a consistent database state on first run.
+  Input: None.
+  Output: None.
+- connect(): Returns a new database connection object with foreign key enforcement enabled.
+  Input: None.
+  Output: sqlite3.Connection object.
+- add_guest/add_room/add_reservation(...): Functions to insert new records into their respective tables.
+  Input: Varies by function, typically includes all necessary column data for a new record.
+  Output: Reservation ID for add_reservation, otherwise None.
+- get_guest/get_room(...): Functions to retrieve a single record by its ID or another unique identifier.
+  Input: ID or unique field (e.g., email, room_number).
+  Output: sqlite3.Row object representing the record, or None if not found.
+- cancel_reservation(reservation_id, guest_id): Updates a reservation's status to 'Cancelled'.
+  Input: reservation_id (int), guest_id (int).
+  Output: bool indicating success.
+- view_reservations(): Retrieves a list of all reservations with joined guest and room details.
+  Input: None.
+  Output: List of sqlite3.Row objects.
+- is_room_available(...): Checks if a room is available for a given date range by checking for overlapping
+  reservations with 'occupied' statuses.
+  Input: room_number (int), check_in_date (str), check_out_date (str).
+  Output: bool.
+
+Important Data Structures:
+- OCCUPIED_STATUSES: A tuple containing reservation statuses that indicate a room is physically occupied
+  ('Confirmed', 'Checked-in', 'Checked-out'). This is used to determine availability conflicts.
+"""
 import sqlite3
-import os
+from pathlib import Path
 
 
 class DatabaseManager:
@@ -15,7 +55,7 @@ class DatabaseManager:
     # Database Setup
     # ---------------------------------------------------
     def create_tables(self):
-        """Create minimal tables (for setup or testing)."""
+        """Create minimal tables (legacy/test-only). Prefer external SQL scripts for schema."""
         conn = self.connect()
         cur = conn.cursor()
         cur.executescript("""
@@ -55,33 +95,93 @@ class DatabaseManager:
         print("[Setup] Tables created or verified.")
 
     def create_if_missing(self):
-        """Ensure the database exists with basic tables and initial data."""
-        create_script = "database_scripts/001_create_tables.sql"
-        populate_script = "database_scripts/002_populate_rooms.sql"
+        """Ensure the database exists with required tables and initial data using external SQL scripts.
+        Behavior:
+          - If file does not exist: initialize.
+          - If file exists but required tables absent: initialize.
+          - If some (but not all) required tables exist: raise RuntimeError (partial schema).
+          - If all required tables exist: skip initialization.
+        """
+        db_path = Path(self.db_name)
+        required_tables = {"rooms", "guests", "reservations"}
+        need_init = False
 
-        if os.path.exists(self.db_name):
-            print(f"(i) Database '{self.db_name}' already exists. Skipping setup.")
+        if not db_path.exists():
+            need_init = True
+        else:
+            try:
+                conn = sqlite3.connect(str(db_path))
+                cur = conn.cursor()
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                existing = {row[0] for row in cur.fetchall()}
+                conn.close()
+            except Exception as e:
+                # Corrupt file or unreadable -> reinitialize
+                print(f"[Warn] Could not inspect existing DB; will reinitialize: {e}")
+                need_init = True
+            else:
+                if required_tables.issubset(existing):
+                    print(f"(i) Database '{self.db_name}' schema detected. Skipping setup.")
+                    return
+                elif existing & required_tables:
+                    raise RuntimeError(
+                        f"Partial schema detected in '{self.db_name}'. Existing tables: {existing & required_tables}. "
+                        "Manual intervention required before initialization."  # Avoid accidental overwrite.
+                    )
+                else:
+                    need_init = True
+
+        if not need_init:
             return
 
-        print("[Setup] Creating new hotel database...")
-        conn = sqlite3.connect(self.db_name)
-        cur = conn.cursor()
+        # Determine script directory relative to this file
+        file_dir = Path(__file__).resolve().parent
+        scripts_dir = file_dir / "database_scripts"
+        create_sql_path = scripts_dir / "001_create_tables.sql"
+        populate_sql_path = scripts_dir / "002_populate_rooms.sql"
 
         try:
-            with open(create_script, "r") as file:
-                cur.executescript(file.read())
-            with open(populate_script, "r") as file:
-                cur.executescript(file.read())
+            create_sql = create_sql_path.read_text(encoding="utf-8")
+            populate_sql = populate_sql_path.read_text(encoding="utf-8")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Required SQL script missing: {e}. Expected at '{scripts_dir}'."
+            ) from e
+
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        print("[Setup] Initializing hotel database (schema + seed data)...")
+        conn = None
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cur = conn.cursor()
+            cur.executescript(create_sql)
+            cur.executescript(populate_sql)
             conn.commit()
-            print("[Setup] Database created successfully.")
+            print("[Setup] Database initialized successfully.")
         except Exception as e:
-            print(f"[Error] during DB setup: {e}")
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            if db_path.exists():
+                try:
+                    db_path.unlink()
+                except Exception:
+                    print(f"[Warn] Failed to remove broken DB file '{db_path}'.")
+            raise RuntimeError(f"[Error] during DB initialization: {e}") from e
         finally:
-            conn.close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def connect(self):
-        """Return a new database connection."""
-        return sqlite3.connect(self.db_name)
+        """Return a new database connection with foreign key enforcement enabled."""
+        conn = sqlite3.connect(self.db_name)
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
 
     # ---------------------------------------------------
     # Guest Methods
@@ -119,10 +219,11 @@ class DatabaseManager:
     def add_room(self, room_number, room_type, capacity, price, available):
         conn = self.connect()
         cur = conn.cursor()
+        # Explicitly include smoking column (default 0) to be compatible with external schema requiring NOT NULL
         cur.execute("""
-            INSERT INTO rooms (room_number, room_type, capacity, price, is_available)
-            VALUES (?, ?, ?, ?, ?)
-        """, (room_number, room_type, capacity, price, available))
+            INSERT INTO rooms (room_number, room_type, smoking, capacity, price, is_available)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (room_number, room_type, 0, capacity, price, available))
         conn.commit()
         conn.close()
 
@@ -166,7 +267,6 @@ class DatabaseManager:
     def cancel_reservation(self, reservation_id: int, guest_id: int) -> bool:
         conn = self.connect()
         cur = conn.cursor()
-        conn.execute("PRAGMA foreign_keys = ON")
         try:
             cur.execute("""
                 SELECT status FROM reservations
@@ -215,6 +315,7 @@ class DatabaseManager:
             conn.close()
 
     def view_reservations(self):
+        conn = None
         try:
             conn = self.connect()
             conn.row_factory = sqlite3.Row
@@ -240,9 +341,55 @@ class DatabaseManager:
             rows = cur.fetchall()
             print("[Debug] view_reservations fetched:", len(rows), "rows")
             return rows
-
         except Exception as e:
             print("[Error view_reservations]:", e)
             return []
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def execute_query(self, query: str, params: tuple = (), fetch_all: bool = True):
+        """Execute a given SQL query and return the results. Commits modifications automatically."""
+        conn = self.connect()
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        try:
+            cur.execute(query, params)
+            conn.commit()
+            if fetch_all:
+                return cur.fetchall()
+            return cur.fetchone()
+        finally:
+            conn.close()
+
+    def is_room_available(self, room_number: int, check_in_date: str | None = None, check_out_date: str | None = None) -> bool:
+        conn = self.connect()
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        try:
+            # Basic availability flag check first
+            cur.execute("SELECT room_id, is_available FROM rooms WHERE room_number = ?", (room_number,))
+            room = cur.fetchone()
+            if room is None:
+                return False
+            if int(room[1]) == 0:
+                return False
+            # If no date range provided, rely only on is_available flag
+            if not check_in_date or not check_out_date:
+                return True
+            # Check overlapping reservations with occupied statuses
+            occ = self.OCCUPIED_STATUSES
+            placeholders = ", ".join(["?"] * len(occ))
+            cur.execute(
+                f"""
+                SELECT 1 FROM reservations
+                WHERE room_id = ?
+                  AND status IN ({placeholders})
+                  AND NOT (check_out_date <= ? OR check_in_date >= ?)
+                LIMIT 1
+                """,
+                (room[0], *occ, check_in_date, check_out_date)
+            )
+            return cur.fetchone() is None
         finally:
             conn.close()
