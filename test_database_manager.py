@@ -15,8 +15,15 @@ class TestDatabaseManager(unittest.TestCase):
     def setUpClass(cls):
         """Runs once before all tests — creates a temporary test DB file."""
         cls.test_db = "test_hotel.db"
+        # Remove file if lingering from previous runs for deterministic setup
+        if os.path.exists(cls.test_db):
+            try:
+                os.remove(cls.test_db)
+            except Exception:
+                pass
         cls.db_manager = DatabaseManager(db_name=cls.test_db)
-        cls.db_manager.create_tables()
+        # Provide simple alias used by some tests
+        cls.db = cls.db_manager
 
     @classmethod
     def tearDownClass(cls):
@@ -41,7 +48,7 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertIn("rooms", tables)
         self.assertIn("guests", tables)
 
-    def test_insert_room(self):
+    def test_insert_room_basic(self):
         """Test inserting a room record."""
         self.db_manager.add_room(101, "Single", 1, 80.0, True)
         conn = sqlite3.connect(self.test_db)
@@ -65,12 +72,12 @@ class TestDatabaseManager(unittest.TestCase):
         self.assertIsNotNone(guest)
         self.assertEqual(guest[1], "Hamza")
     
-    def test_insert_room(self):
+    def test_insert_room_lookup(self):
         # insert a room and verify it can be retrieved
-        self.db.add_room(room_number=101, room_type='Single', capacity=1, price=50.0, available=1)
-        room = self.db.get_room(room_number=101)
+        self.db.add_room(room_number=102, room_type='Single', capacity=1, price=50.0, available=1)
+        room = self.db.get_room(room_number=102)
         self.assertIsNotNone(room)
-        self.assertEqual(int(room['room_number']), 101)
+        self.assertEqual(int(room['room_number']), 102)
         self.assertEqual(room['room_type'], 'Single')
         self.assertEqual(int(room['capacity']), 1)
     
@@ -92,6 +99,7 @@ class TestDatabaseManager(unittest.TestCase):
             total_price=320.0,
             status='Confirmed'
         )
+        self.assertIsInstance(res_id, int)
 
     def test_is_room_available(self):
         # create guest and room
