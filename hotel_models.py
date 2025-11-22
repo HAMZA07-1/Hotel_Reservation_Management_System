@@ -1,7 +1,28 @@
-
 """
-Hotel Management Application
-Room, Guest, and Reservation Classes
+Module: hotel_models.py
+Date: 11/1/2025
+Programmer: Daniel, Keano, Hamza
+
+Description:
+This module defines the primary data model classes for the application: Room, Guest, and Reservation.
+These classes are intended to represent the main entities of the hotel management system. Currently, they serve
+as simple data containers with constructors and setter methods, but are not deeply integrated into the application's
+data flow, which primarily uses sqlite3.Row objects.
+
+Class: Room
+Description: Represents a hotel room with its properties.
+- Important Attributes: room_id, room_number, room_type, capacity, price, is_available.
+
+Class: Guest
+Description: Represents a hotel guest with their contact information.
+- Important Attributes: guest_id, first_name, last_name, email, phone, address.
+
+Class: Reservation
+Description: Represents a booking, linking a Guest to a Room for a specific date range.
+- Important Attributes: reservation_id, guest, room, check_in_date, check_out_date, status.
+- Important Data Structures:
+  - STATUSES: A class-level tuple containing all valid states for a reservation (e.g., "Confirmed", "Cancelled").
+    This is used to enforce data integrity for the reservation status.
 """
 from datetime import datetime
 import sqlite3
@@ -89,4 +110,3 @@ class DatabaseManager:
     def __init__(self, room_db, guest_db):
         self.room_db = room_db
         self.guest_db = guest_db
-

@@ -1,6 +1,24 @@
--- This script inserts the initial 151 rooms into the 'rooms' table.
--- The room_id column is omitted as it is configured to auto-increment.
--- The 'smoking' column is now included.
+-- Module: 002_populate_rooms.sql
+-- Date: 11/1/2025
+-- Programmer(s): Daniel, Keano, Hamza
+--
+-- Description:
+-- This script is used to seed the database with a large, predefined set of initial room data. It contains
+-- numerous INSERT statements to populate the `rooms` table with a variety of room types, capacities, and
+-- prices. This data is essential for development, testing, and providing a realistic inventory for the
+-- application upon first launch.
+--
+-- Important Statements:
+-- - INSERT INTO rooms (...): Each statement adds a new room record to the database. The script inserts
+--   data for room number, type, smoking status, capacity, price, and availability.
+--
+-- Important Data Structures:
+-- - N/A. This script populates the `rooms` table schema defined in `001_create_tables.sql`.
+--
+-- Algorithms:
+-- - N/A. This is a declarative script consisting of a sequence of data insertion commands.
+--
+
 
 INSERT INTO rooms (room_number, room_type, smoking, capacity, price, is_available) VALUES
 ('107', 'Two Queens + Pullout', 0, 6, 150, 1),

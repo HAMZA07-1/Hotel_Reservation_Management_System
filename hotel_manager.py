@@ -1,3 +1,38 @@
+"""
+Module: hotel_manager.py
+Date: 11/21/2025
+Programmer: Keano
+
+Description:
+This module contains the HotelManager class, which implements the core business logic for hotel operations.
+It acts as an intermediary between the user interface/API layer and the database layer (DatabaseManager).
+Its responsibilities include advanced room searching, price calculation, and handling the reservation process
+with transactional integrity.
+
+Important Functions:
+- search_rooms(...): Performs a complex search for rooms based on a variety of filter criteria. It dynamically
+  builds a SQL query to match all specified conditions.
+  Input: A set of optional keyword arguments like check_in, check_out, room_types, capacity, price, etc.
+  Output: A list of sqlite3.Row objects representing the matching rooms.
+- calculate_total_price(...): Calculates the total cost of a stay based on the room's nightly price and the
+  number of nights.
+  Input: room_id (int), check_in (str), check_out (str).
+  Output: float representing the total price.
+- reserve_room(...): Creates a new reservation. It performs a critical check for room availability within a
+  database transaction to prevent double-booking (race conditions).
+  Input: guest_id (int), room_id (int), check_in (str), check_out (str).
+  Output: int, the ID of the newly created reservation.
+
+Algorithms:
+- Dynamic SQL Query Construction (in search_rooms): The search function constructs a SQL query string and a
+  corresponding parameter list piece-by-piece. Each filter argument adds a new 'AND' clause to the WHERE
+  statement. This approach is flexible and avoids writing numerous pre-defined queries. It's chosen for its
+  scalability as new search filters can be added easily.
+- Transactional Reservation (in reserve_room): To prevent a race condition where two users might book the same
+  room for the same dates simultaneously, this function uses a database transaction ('BEGIN IMMEDIATE'). It first
+  locks the database for writing, then re-checks for availability, and only then inserts the new reservation. If
+  the room was taken in the meantime, the transaction is rolled back. This ensures data consistency.
+"""
 from datetime import datetime
 import sqlite3
 from typing import Optional, List

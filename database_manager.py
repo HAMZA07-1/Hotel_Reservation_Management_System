@@ -1,3 +1,43 @@
+"""
+Module: database_manager.py
+Date: 11/21/2025
+Programmer: Keano, Daniel, Hamza, Allen
+
+Description:
+This module provides the DatabaseManager class, which encapsulates all direct interactions with the SQLite database.
+It is responsible for initializing the database schema, managing connections, and providing a low-level API for
+Create, Read, Update, and Delete (CRUD) operations on the core tables (rooms, guests, reservations). It abstracts
+the SQL logic away from the higher-level business logic.
+
+Important Functions:
+- create_if_missing(): Checks if the database exists and has the correct schema. If not, it runs SQL scripts to
+  create and populate the tables. This ensures a consistent database state on first run.
+  Input: None.
+  Output: None.
+- connect(): Returns a new database connection object with foreign key enforcement enabled.
+  Input: None.
+  Output: sqlite3.Connection object.
+- add_guest/add_room/add_reservation(...): Functions to insert new records into their respective tables.
+  Input: Varies by function, typically includes all necessary column data for a new record.
+  Output: Reservation ID for add_reservation, otherwise None.
+- get_guest/get_room(...): Functions to retrieve a single record by its ID or another unique identifier.
+  Input: ID or unique field (e.g., email, room_number).
+  Output: sqlite3.Row object representing the record, or None if not found.
+- cancel_reservation(reservation_id, guest_id): Updates a reservation's status to 'Cancelled'.
+  Input: reservation_id (int), guest_id (int).
+  Output: bool indicating success.
+- view_reservations(): Retrieves a list of all reservations with joined guest and room details.
+  Input: None.
+  Output: List of sqlite3.Row objects.
+- is_room_available(...): Checks if a room is available for a given date range by checking for overlapping
+  reservations with 'occupied' statuses.
+  Input: room_number (int), check_in_date (str), check_out_date (str).
+  Output: bool.
+
+Important Data Structures:
+- OCCUPIED_STATUSES: A tuple containing reservation statuses that indicate a room is physically occupied
+  ('Confirmed', 'Checked-in', 'Checked-out'). This is used to determine availability conflicts.
+"""
 import sqlite3
 from pathlib import Path
 

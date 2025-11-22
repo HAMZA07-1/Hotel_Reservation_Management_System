@@ -1,5 +1,25 @@
--- This script sets up the foundational database schema for the Hotel Reservation System.
--- It defines the core tables (Rooms, Guests, Reservations) needed for the MVP and sprint upgrades.
+-- Module: 001_create_tables.sql
+-- Date: 11/1/2025
+-- Programmer(s): Daniel, Keano, Hamza, Allen
+--
+-- Description:
+-- This SQL script defines the complete database schema for the Hotel Reservation System. It contains the
+-- CREATE TABLE statements for the core entities: rooms, guests, and reservations. It also establishes
+-- column data types, primary keys, NOT NULL constraints, CHECK constraints for data integrity, and foreign
+-- key relationships to enforce relational integrity between the tables.
+--
+-- Important Statements:
+-- - CREATE TABLE rooms: Defines the structure for storing room inventory, including properties like room number,
+--   type, capacity, price, and availability status.
+-- - CREATE TABLE guests: Defines the structure for storing guest contact information.
+-- - CREATE TABLE reservations: A linking table that connects a guest to a room for a specific date range.
+--   It includes foreign keys that reference the guests and rooms tables.
+-- - FOREIGN KEY ... ON DELETE CASCADE: Ensures that if a guest or room is deleted, all associated reservations
+--   are also automatically deleted, maintaining data consistency.
+-- - CREATE INDEX: Creates indexes on foreign key columns in the reservations table to improve the performance
+--   of queries that join or filter on guest_id and room_id.
+--
+
 
 -- 1. ROOMS TABLE
 CREATE TABLE IF NOT EXISTS rooms (

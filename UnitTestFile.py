@@ -1,3 +1,41 @@
+"""
+Module: UnitTestFile.py
+Date: 10/28/2025
+Programmer(s): Daniel
+
+Brief Description:
+This module contains a suite of unit tests for the data model classes (Room, Guest, Reservation) and for
+verifying the database schema itself. It uses Python's `unittest` framework to ensure that the basic data
+structures and the database table layouts behave as expected.
+
+Class: RoomTestCase, GuestTestcase, ReservationTest
+Brief Description: These test classes verify the correct initialization and functionality of the setter methods
+for the `Room`, `Guest`, and `Reservation` data model classes from `hotel_models.py`.
+
+Class: TestDatabaseSchema
+Brief Description: This test class directly inspects the live database schema to ensure it matches the design.
+
+Important Functions:
+- test_*_initialization(): These methods check that the constructors of the model classes correctly assign
+  the initial values to the object's attributes.
+- test_*_update_methods(): These methods test the "setter" functions of the model classes to ensure they
+  correctly modify the object's state.
+- test_*_table_schema(): These methods use the `PRAGMA table_info` command to query the database schema and
+  assert that the columns and their data types match the expected structure.
+- test_foreign_keys(): This method uses `PRAGMA foreign_key_list` to verify that the foreign key relationships
+  in the `reservations` table are correctly defined.
+
+Important Data Structures:
+- N/A
+
+Algorithms:
+- Schema Introspection: The `TestDatabaseSchema` class uses a database inspection technique. Instead of assuming
+  the schema is correct, it queries the database's metadata using SQLite's `PRAGMA` commands. This allows the
+  tests to dynamically verify the structure of the tables, including column names, data types, and foreign
+  key constraints, providing a powerful way to detect any discrepancies between the code and the actual
+  database schema.
+"""
+
 import unittest
 from hotel_models import Room
 from hotel_models import Guest

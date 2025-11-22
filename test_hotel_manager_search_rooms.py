@@ -1,5 +1,34 @@
-"""Unittest suite for HotelManager.search_rooms enhanced filtering and availability modes.
-Converted from pytest to unittest for consistency.
+"""
+Module: test_hotel_manager_search_rooms.py
+Date: 11/21/2025
+Programmer(s): Keano
+
+Brief Description:
+This module contains a comprehensive unit test suite for the `search_rooms` method of the `HotelManager` class. It uses the `unittest` framework to verify the complex filtering and sorting logic, including date-based availability checks.
+
+Class: TestSearchRooms
+Brief Description: A test suite that sets up a detailed, temporary database to test various search scenarios.
+
+Important Functions:
+- setUp() -> None
+  - Input: None
+  - Output: None
+  - Description: Runs before each test. It creates a temporary database and populates it with a specific, deterministic set of rooms, guests, and reservations. This controlled dataset is crucial for verifying that the search filters work correctly.
+- tearDown() -> None
+  - Input: None
+  - Output: None
+  - Description: Runs after each test to delete the temporary database, ensuring each test is independent.
+- test_...() methods: Each method tests a specific search scenario.
+  - `test_basic_attribute_filters()`: Checks filtering by room type and smoking status.
+  - `test_availability_mode_free_excludes_overlaps()`: Verifies that the search correctly identifies and excludes rooms that have conflicting reservations for a given date range.
+  - `test_availability_mode_occupied_includes_only_overlaps()`: Verifies the inverse of the above, finding only rooms that are booked.
+  - `test_sorting_desc_capacity_then_tiebreaker()`: Checks if the sorting functionality works as expected.
+
+Important Data Structures:
+- Temporary Database with Seed Data: The `setUp` method creates a rich, temporary dataset that includes rooms with different properties and pre-existing reservations. This is essential for testing the interactions between different search filters.
+
+Algorithms:
+- Data-Driven Testing: The structure of this test class is a form of data-driven testing. A known set of data is inserted, and each test function asserts that a specific query against that data produces the exact, expected result. This is a robust way to validate complex query logic.
 """
 import os
 import tempfile

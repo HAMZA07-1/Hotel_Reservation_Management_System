@@ -1,3 +1,42 @@
+"""
+Module: room_status_window.py
+Date: 11/17/2025
+Programmer's Name: Daniel, Hamza
+
+Description:
+This module provides the 'Room Status' window, a GUI component for viewing and managing the hotel's room inventory.
+It allows users to filter rooms based on various criteria (number, availability, smoking, capacity) and edit
+certain room properties like price and availability status. The interface features pagination to handle a large
+number of rooms.
+
+Important Functions:
+- open_room_status_window(parent): Creates and displays the room status Toplevel window.
+  Input: parent (tk.Widget).
+  Output: The created tk.Toplevel window instance.
+- load_data(): Fetches room data from the database. It dynamically builds a SQL query based on the user's
+  selections in the filter bar. This is the core data retrieval function.
+  Input: None.
+  Output: None (updates a global list `result_rows`).
+- update_page(): Populates the Treeview table with the correct slice of data from `result_rows` based on the
+  current page number and rows per page.
+  Input: None.
+  Output: None.
+- open_edit_popup(...): Opens a small modal dialog window that allows the user to change the price and
+  availability of a selected room.
+  Input: room_id, current_price, current_avail_str.
+  Output: None.
+
+Important Data Structures:
+- tree (ttk.Treeview): The widget used to display the list of rooms and their properties.
+- result_rows (list): A list that stores the full set of filtered query results. The pagination logic displays
+  subsets of this list.
+
+Algorithm:
+- Pagination: The module implements manual pagination. The `load_data` function fetches all rooms matching the
+  filters into the `result_rows` list. The `update_page` function then calculates a start and end index based on
+  the current page and `rows_per_page` to display only a small portion of the full list. This is a client-side
+  pagination approach, suitable for a moderate number of total rooms.
+"""
 import tkinter as tk
 from tkinter import ttk
 from database_manager import DatabaseManager
