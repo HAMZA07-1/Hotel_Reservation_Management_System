@@ -1,3 +1,42 @@
+"""
+Module: room_status_window.py
+Date: 11/17/2025
+Programmer's Name: Daniel, Hamza
+
+Description:
+This module provides the 'Room Status' window, a GUI component for viewing and managing the hotel's room inventory.
+It allows users to filter rooms based on various criteria (number, availability, smoking, capacity) and edit
+certain room properties like price and availability status. The interface features pagination to handle a large
+number of rooms.
+
+Important Functions:
+- open_room_status_window(parent): Creates and displays the room status Toplevel window.
+  Input: parent (tk.Widget).
+  Output: The created tk.Toplevel window instance.
+- load_data(): Fetches room data from the database. It dynamically builds a SQL query based on the user's
+  selections in the filter bar. This is the core data retrieval function.
+  Input: None.
+  Output: None (updates a global list `result_rows`).
+- update_page(): Populates the Treeview table with the correct slice of data from `result_rows` based on the
+  current page number and rows per page.
+  Input: None.
+  Output: None.
+- open_edit_popup(...): Opens a small modal dialog window that allows the user to change the price and
+  availability of a selected room.
+  Input: room_id, current_price, current_avail_str.
+  Output: None.
+
+Important Data Structures:
+- tree (ttk.Treeview): The widget used to display the list of rooms and their properties.
+- result_rows (list): A list that stores the full set of filtered query results. The pagination logic displays
+  subsets of this list.
+
+Algorithm:
+- Pagination: The module implements manual pagination. The `load_data` function fetches all rooms matching the
+  filters into the `result_rows` list. The `update_page` function then calculates a start and end index based on
+  the current page and `rows_per_page` to display only a small portion of the full list. This is a client-side
+  pagination approach, suitable for a moderate number of total rooms.
+"""
 import tkinter as tk
 from tkinter import ttk
 from database_manager import DatabaseManager
@@ -133,6 +172,7 @@ def open_room_status_window(parent):
     #---------------Go to page------------------
     #Called when page number is changed either by buttons or text input + enter
     def go_to_page(*args):
+        """Called when page number is changed either by buttons or text input + enter."""
         try:
             new_page = int(page_entry.get())
         except ValueError:
@@ -151,6 +191,7 @@ def open_room_status_window(parent):
     #----------------Update Page--------------------
     #Updates the page numbers
     def change_page(amount):
+        """Updates the page numbers."""
         new_page = current_page.get() + amount
         max_page = max(1, (len(result_rows) -1) // rows_per_page + 1)
 
@@ -167,6 +208,7 @@ def open_room_status_window(parent):
     #------------------------------
     #Updated content on page currently in view
     def update_page():
+        """Updated content on page currently in view."""
         tree.delete(*tree.get_children())
 
         page = current_page.get()
@@ -195,6 +237,7 @@ def open_room_status_window(parent):
     #Loads data from database, needs to be implemented into database_manager.py in future update
     #Builds query based on filter flags
     def load_data():
+        """Loads data from database, needs to be implemented into database_manager.py in future update."""
         nonlocal result_rows
         result_rows = []
 
@@ -253,8 +296,8 @@ def open_room_status_window(parent):
     #----------------------------------
     # EDIT POP UP WINDOW
     #----------------------------------
-    #Event triggered by double-clicking on edit on a tree entry
     def on_tree_double_click(event):
+        """Event triggered by double-clicking on edit on a tree entry."""
         region = tree.identify("region", event.x, event.y)
         if region != "cell":
             return
@@ -280,6 +323,7 @@ def open_room_status_window(parent):
 
     #------------------Edit Room pop up window-------------------
     def open_edit_popup(room_id, current_price, current_avail_str):
+        """Opens a small modal dialog window that allows the user to change the price and availability of a selected room."""
         popup = tk.Toplevel(win)
         popup.title(f"Edit Room {room_id}")
         popup.grab_set()
@@ -312,8 +356,9 @@ def open_room_status_window(parent):
         button_frame = tk.Frame(popup)
         button_frame.grid(row=3, column=0, columnspan=2, pady=10)
 
-        #Reads new values from price_var and avail_var and attempts to apply them
+
         def save_changes():
+            """Reads new values from price_var and avail_var and attempts to apply them"""
             try:
                 new_price = float(price_var.get())
             except ValueError:
