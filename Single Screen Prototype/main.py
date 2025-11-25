@@ -6,6 +6,7 @@ import tkinter as tk
 from rooms_status_frame import RoomStatusFrame
 from login_frame import LoginFrame
 from booking_records_frame import BookingRecordsFrame
+from metrics_frame import MetricsFrame
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
@@ -46,7 +47,7 @@ class HotelApp(tk.Tk):
         #self.frames["new_reservation"] = NewReservationFrame(self.container, self)
         self.frames["rooms_status"] = RoomStatusFrame(self.container, self)
         self.frames["booking_records"] = BookingRecordsFrame(self.container,self)
-        #self.frames["metrics"] = MetricsFrame(self.container, self)
+        self.frames["metrics"] = MetricsFrame(self.container, self)
         #self.frames["Employees"] = EmployeesFrame(self.container, self)
 
         # Layout screens (stacked, we raise the one we want)
@@ -141,7 +142,7 @@ class MainMenuFrame(tk.Frame):
             text="Metrics",
             font=("TkDefaultFont", 16),
             width=20,
-            command=lambda: controller.show_frame("rooms"),
+            command=lambda: controller.show_frame("metrics"),
             bg="#34495E",
             fg=FG_COLOR,
             activebackground="#3D566E",
