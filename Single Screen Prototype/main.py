@@ -5,6 +5,7 @@ from config import DB_PATH
 import tkinter as tk
 from rooms_status_frame import RoomStatusFrame
 from login_frame import LoginFrame
+from booking_records_frame import BookingRecordsFrame
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
@@ -15,7 +16,7 @@ BG_COLOR = "#2C3E50"
 FG_COLOR = "#ECF0F1"
 
 #---------------------------------------
-# APP INITIALIZATION
+# APP INITIALIZATION / PROGRAM START
 #---------------------------------------
 class HotelApp(tk.Tk):
     def __init__(self):
@@ -42,14 +43,18 @@ class HotelApp(tk.Tk):
         #Screens made here:
         self.frames["login_screen"] = LoginFrame(self.container, self)
         self.frames["main_menu"] = MainMenuFrame(self.container, self)
+        #self.frames["new_reservation"] = NewReservationFrame(self.container, self)
         self.frames["rooms_status"] = RoomStatusFrame(self.container, self)
+        self.frames["booking_records"] = BookingRecordsFrame(self.container,self)
+        #self.frames["metrics"] = MetricsFrame(self.container, self)
+        #self.frames["Employees"] = EmployeesFrame(self.container, self)
 
         # Layout screens (stacked, we raise the one we want)
         for frame in self.frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
 
         #First Frame shown on program start
-        self.show_frame("login_screen")
+        self.show_frame("main_menu")
 
     #def to show new screen
     def show_frame(self, name):
@@ -121,7 +126,7 @@ class MainMenuFrame(tk.Frame):
             text="Booking Records",
             font=("TkDefaultFont", 16),
             width=20,
-            command=lambda: controller.show_frame("rooms"),
+            command=lambda: controller.show_frame("booking_records"),
             bg="#34495E",
             fg=FG_COLOR,
             activebackground="#3D566E",
