@@ -1,8 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import sqlite3
+from database_manager import DatabaseManager
 
 BG_APP = "#2C3E50"
 PANEL_BG = "#34495E"
+
+db = DatabaseManager()
 
 #----------------------------------------
 # LOGIN SCREEN
@@ -32,7 +36,7 @@ class LoginFrame(tk.Frame):
         frame.pack()
 
         # Username / Password labels
-        tk.Label(frame, text="Username:", bg=PANEL_BG, fg="white").grid(
+        tk.Label(frame, text="Employee ID:", bg=PANEL_BG, fg="white").grid(
             row=0, column=0, pady=8, padx=5, sticky="e"
         )
         tk.Label(frame, text="Password:", bg=PANEL_BG, fg="white").grid(
@@ -45,21 +49,6 @@ class LoginFrame(tk.Frame):
 
         entry_password = tk.Entry(frame, width=20, show="*", textvariable=self.password_var)
         entry_password.grid(row=1, column=1, pady=8)
-
-        # Role selection
-        tk.Label(frame, text="Role:", bg=PANEL_BG, fg="white").grid(
-            row=2, column=0, pady=8, padx=5, sticky="e"
-        )
-
-        role_dropdown = ttk.Combobox(
-            frame,
-            textvariable=self.role_var,
-            state="readonly",
-            width=18,
-            values=("Manager", "Employee")
-        )
-        role_dropdown.current(0)
-        role_dropdown.grid(row=2, column=1, pady=8)
 
         # Login button
         login_btn = tk.Button(
@@ -80,31 +69,54 @@ class LoginFrame(tk.Frame):
     # LOGIN LOGIC
     #-----------------------------------------
     def check_credentials(self, event=None):
-        """Validate the entered username/password/role."""
-        username = self.username_var.get()
-        password = self.password_var.get()
-        role = self.role_var.get()
+        #Validate ID/Password against database
+        #Move to database manager in future push
+        employee_id = self.username_var.get().strip()
+        password = self.password_var.get().strip()
 
-        # Manager login
-        if role == "Manager" and username == "admin" and password == "password":
-            #Go to manager home
-            self.controller.show_frame("main_menu")
-            #clear fields after success
-            self.username_var.set("")
-            self.password_var.set("")
+        if not employee_id or not password:
+            messagebox.showerror("Login Failed", "Please enter both username and password.")
             return
 
-        # Employee login
-        if role == "Employee" and username == "employee" and password == "1234":
-            # Go to an employee screen
-            # self.controller.show_frame("employee_home")
-            self.controller.show_frame("main_menu")
+        conn = None
+        try:
+            conn = db.connect()
+            cur = conn.cursor()
+
+            #Assume employee_id is stored exactly as user enters
+            cur.execute(
+                """
+                SELECT employee_id, employee_password, first_name, last_name, role FROM employees
+                WHERE employee_id = ?
+                """, (employee_id,)
+            )
+            row = cur.fetchone()
+
+            if row is None:
+                messagebox.showerror("Login Failed", "Invalid Employee ID or Password.")
+                return
+
+            db_employee_id, db_password, first_name, last_name, role = row
+
+            if password != db_password:
+                messagebox.showerror("Login Failed", "Invalid Employee ID or Password.")
+                return
+
+            self.current_role = role #Stores role for other parts of app
+
+            if role == 1:
+                self.controller.show_frame("main_menu")
+            else:
+                self.controller.show_frame("main_menu")
+
             self.username_var.set("")
             self.password_var.set("")
-            return
 
-        # Otherwise fail
-        messagebox.showerror("Login Failed", "Invalid username or password")
+        except sqlite3.Error as e:
+            messagebox.showerror("Database Error", str(e))
+        finally:
+            if conn:
+                conn.close()
 
     def refresh(self):
         #Called when this frame is shown

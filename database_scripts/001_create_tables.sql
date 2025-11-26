@@ -62,3 +62,17 @@ ON reservations (guest_id);
 
 CREATE INDEX IF NOT EXISTS idx_reservations_room_id
 ON reservations (room_id);
+
+-- 4. EMPLOYEES TABLE
+CREATE TABLE IF NOT EXISTS employees(
+    employee_id INTEGER PRIMARY KEY,
+    employee_password TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    phone_number TEXT,
+    address_line1 TEXT,
+    address_line2 TEXT,
+    city TEXT,
+    postal_code TEXT,
+    role TEXT NOT NULL
+);

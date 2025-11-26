@@ -19,6 +19,12 @@
 -- - N/A. This is a declarative script consisting of a sequence of data insertion commands.
 --
 
+INSERT INTO employees (employee_id, employee_password, first_name, last_name, role) VALUES
+(56283, 'password456', 'Daniel', 'Sweet', 'Manager'),
+(37635, 'password123', 'Allen', 'Macam', 'Employee'),
+(46234, 'password789', 'Hamza', 'Sulehira', 'Manager'),
+(70056, 'password101', 'Keano', 'Aquino', 'Employee');
+
 
 INSERT INTO rooms (room_number, room_type, smoking, capacity, price, is_available) VALUES
 ('107', 'Two Queens + Pullout', 0, 6, 150, 1),
