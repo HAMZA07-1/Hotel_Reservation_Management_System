@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS employees(
     address_line1 TEXT,
     address_line2 TEXT,
     city TEXT,
+    state TEXT,
     postal_code TEXT,
     role TEXT NOT NULL
 );

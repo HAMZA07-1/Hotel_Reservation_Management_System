@@ -28,6 +28,11 @@ class HotelApp(tk.Tk):
         self.geometry("1920x1080")
         self.configure(bg=BG_COLOR)
 
+        #Current User logged in info
+        self.current_user_id = None
+        self.current_user_role = None
+        self.current_user_name = None
+
         #Expandable root grid
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -62,7 +67,7 @@ class HotelApp(tk.Tk):
     def show_frame(self, name):
         frame = self.frames[name]
         frame.tkraise()
-        if name == "rooms":
+        if hasattr(frame, "refresh"):
             frame.refresh()
 
 #-----------------------------
@@ -71,6 +76,7 @@ class HotelApp(tk.Tk):
 class MainMenuFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
         super().__init__(parent, bg=BG_COLOR)
+        self.controller = controller
 
         # Frame fills the container
         self.grid_rowconfigure(0, weight=1)
@@ -81,17 +87,17 @@ class MainMenuFrame(tk.Frame):
         content.grid(row=0, column=0, sticky="n")
 
         # Title
-        title = tk.Label(
+        self.title_label = tk.Label(
             content,
             text="Hotel Management Main Menu",
             font=("TkDefaultFont", 28, "bold"),
             bg=BG_COLOR,
             fg=FG_COLOR
         )
-        title.pack(pady=(0, 30))
+        self.title_label.pack(pady=(0, 30))
 
         #--------------------Buttons----------------------
-        #New Reservation Button
+        # New Reservation Button
         new_reservation_btn = tk.Button(
             content,
             text="New Reservation",
@@ -105,7 +111,6 @@ class MainMenuFrame(tk.Frame):
             relief="flat"
         )
         new_reservation_btn.pack(pady=10)
-
 
         # View Rooms Button
         view_rooms_btn = tk.Button(
@@ -122,7 +127,7 @@ class MainMenuFrame(tk.Frame):
         )
         view_rooms_btn.pack(pady=10)
 
-        #Booking Records Button
+        # Booking Records Button
         booking_records_btn = tk.Button(
             content,
             text="Booking Records",
@@ -137,8 +142,8 @@ class MainMenuFrame(tk.Frame):
         )
         booking_records_btn.pack(pady=10)
 
-        #Metrics Button
-        metrics_btn = tk.Button(
+        # Metrics Button  (we keep a reference on self)
+        self.metrics_btn = tk.Button(
             content,
             text="Metrics",
             font=("TkDefaultFont", 16),
@@ -150,10 +155,10 @@ class MainMenuFrame(tk.Frame):
             activeforeground=FG_COLOR,
             relief="flat"
         )
-        metrics_btn.pack(pady=10)
+        self.metrics_btn.pack(pady=10)
 
-        #Employees Button
-        employees_btn = tk.Button(
+        # Employees Button (also keep reference)
+        self.employees_btn = tk.Button(
             content,
             text="Employees",
             font=("TkDefaultFont", 16),
@@ -165,15 +170,15 @@ class MainMenuFrame(tk.Frame):
             activeforeground=FG_COLOR,
             relief="flat"
         )
-        employees_btn.pack(pady=10)
+        self.employees_btn.pack(pady=10)
 
-        #Logout Button
+        # Logout Button
         logout_btn = tk.Button(
             content,
             text="Logout",
             font=("TkDefaultFont", 16),
             width=20,
-            command=lambda: controller.show_frame("login_screen"),
+            command=self.logout,
             bg="#34495E",
             fg=FG_COLOR,
             activebackground="#3D566E",
@@ -181,6 +186,37 @@ class MainMenuFrame(tk.Frame):
             relief="flat"
         )
         logout_btn.pack(pady=10)
+
+    def logout(self):
+        #Clear current user and go back to login screen.
+        self.controller.current_user_id = None
+        self.controller.current_user_role = None
+        self.controller.show_frame("login_screen")
+
+    def refresh(self):
+        #Called when this menu is shown; hide buttons based on role.
+        name = self.controller.current_user_name or "Guest"
+        self.title_label.config(
+            text=f"Welcome {name}! \nHotel Management Main Menu"
+        )
+        role = self.controller.current_user_role
+
+        # Default: hide both, then selectively show
+        # use pack_forget to hide and pack to show
+        # But we only want to pack if they’re not already visible.
+
+        if role == "Manager":
+            # Manager sees both
+            if not self.metrics_btn.winfo_ismapped():
+                self.metrics_btn.pack(pady=10)
+            if not self.employees_btn.winfo_ismapped():
+                self.employees_btn.pack(pady=10)
+        else:
+            # Employees cannot see these
+            if self.metrics_btn.winfo_ismapped():
+                self.metrics_btn.pack_forget()
+            if self.employees_btn.winfo_ismapped():
+                self.employees_btn.pack_forget()
 
 
 if __name__ == "__main__":

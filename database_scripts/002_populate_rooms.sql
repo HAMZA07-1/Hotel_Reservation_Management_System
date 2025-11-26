@@ -19,11 +19,11 @@
 -- - N/A. This is a declarative script consisting of a sequence of data insertion commands.
 --
 
-INSERT INTO employees (employee_id, employee_password, first_name, last_name, role) VALUES
-(56283, 'password456', 'Daniel', 'Sweet', 'Manager'),
-(37635, 'password123', 'Allen', 'Macam', 'Employee'),
-(46234, 'password789', 'Hamza', 'Sulehira', 'Manager'),
-(70056, 'password101', 'Keano', 'Aquino', 'Employee');
+INSERT INTO employees (employee_id, employee_password, first_name, last_name, phone_number, address_line1, address_line2, city, state, postal_code, role) VALUES
+(56283, 'password456', 'Daniel', 'Sweet', '(555)-782-5939', '308 Negra Arroyo Lane', '', 'Albuquerque', 'New Mexico', '87104', 'Manager'),
+(37635, 'password123', 'Allen', 'Macam', '(555)-812-8423', '3541 Anchor Way', '', 'Bikini Bottom', 'Pacific Ocean', '165134', 'Employee'),
+(46234, 'password789', 'Hamza', 'Sulehira', '(555)-156-4897', '711 Maple Street', '', 'Muncle', 'Indiana', '47302',  'Manager'),
+(70056, 'password101', 'Keano', 'Aquino', '(555)-841-7529', '62 West Wallaby Street', '', 'Wigan', 'Lancashire', 'BB7', 'Employee');
 
 
 INSERT INTO rooms (room_number, room_type, smoking, capacity, price, is_available) VALUES

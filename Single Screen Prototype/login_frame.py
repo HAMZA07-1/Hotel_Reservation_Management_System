@@ -102,12 +102,16 @@ class LoginFrame(tk.Frame):
                 messagebox.showerror("Login Failed", "Invalid Employee ID or Password.")
                 return
 
-            self.current_role = role #Stores role for other parts of app
+            db_employee_id = row[0]
+            first_name = row[2]
+            last_name = row[3]
+            role = row[4]
 
-            if role == 1:
-                self.controller.show_frame("main_menu")
-            else:
-                self.controller.show_frame("main_menu")
+            self.controller.current_user_id = db_employee_id
+            self.controller.current_user_role = role
+            self.controller.current_user_name = f"{first_name} {last_name}".strip()
+
+            self.controller.show_frame("main_menu")
 
             self.username_var.set("")
             self.password_var.set("")
