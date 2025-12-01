@@ -1,6 +1,6 @@
 """
 Module: database_manager.py
-Date: 11/21/2025
+Date: 11/29/2025
 Programmer: Keano, Daniel, Hamza, Allen
 
 Description:
@@ -240,6 +240,24 @@ class DatabaseManager:
         row = cur.fetchone()
         conn.close()
         return row
+
+    def room_exists(self, room_id: int = None, room_number: int = None) -> bool:
+        """Checks if a room exists using its ID or number."""
+        if room_id is None and room_number is None:
+            raise ValueError("Provide room_id or room_number.")
+        if room_id:
+            sql = "SELECT 1 FROM rooms WHERE room_id = ? LIMIT 1"
+            params = (room_id,)
+        else:
+            sql = "SELECT 1 FROM rooms WHERE room_number = ? LIMIT 1"
+            params = (room_number,)
+        conn = self.connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(sql, params)
+            return cur.fetchone() is not None
+        finally:
+            conn.close()
 
     # ---------------------------------------------------
     # Reservation Methods
