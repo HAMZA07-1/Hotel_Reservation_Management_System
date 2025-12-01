@@ -219,25 +219,25 @@ class HotelManager:
             room_id: int,
             check_in: str,
             check_out: str,
-            status: str = "Confirmed") -> int:
+            status: str = "Confirmed") -> int: #returns new reservation id
         """Creates a new reservation in the database with transactional safety."""
-        ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
+        # Date parsing and initial validation
+        ci_iso, co_iso, _ = self._parse_dates(check_in, check_out)
 
-        if not self.db.guest_exists(guest_id=guest_id):
-            raise ValueError("Guest does not exist")
+        if not self.db.guest_exists(guest_id = guest_id):
+            raise ValueError("Guest does not exist.")
 
-        room = self.db.get_room(room_id=room_id)
-        if room is None:
-            raise ValueError("Room does not exist")
+        if not self.db.room_exists(room_id = room_id):
+            raise ValueError("Room does not exist.")
 
-        total_price = float(room["price"]) * nights
+        total_price = self.calculate_total_price(room_id, check_in, check_out)
 
         conn = self.db.connect()
         cur = conn.cursor()
 
         try:
             conn.isolation_level = None
-            cur.execute("BEGIN IMMEDIATE")  # Prevents a "race condition"
+            cur.execute("BEGIN IMMEDIATE") #Prevent a race condition
 
             occ = DatabaseManager.OCCUPIED_STATUSES
             ph = ", ".join(["?"] * len(occ))
@@ -246,8 +246,8 @@ class HotelManager:
                     SELECT 1
                     FROM reservations
                     WHERE room_id = ?
-                      AND status IN ({ph})
-                      AND NOT (check_out_date <= ? OR check_in_date >= ?)
+                        AND status IN ({ph})
+                        AND (check_out_date > ? AND check_in_date < ?)
                     LIMIT 1
                     """,
                 (room_id, *occ, ci_iso, co_iso),
@@ -270,11 +270,16 @@ class HotelManager:
             return reservation_id
 
         except Exception:
+            # On any error, ensure the transaction is rolled back.(undoes all changes since BEGIN IMMEDIATE)
             try:
                 cur.execute("ROLLBACK")
             except Exception:
+                # Ignore rollback errors
                 pass
             raise
 
         finally:
             conn.close()
+
+
+

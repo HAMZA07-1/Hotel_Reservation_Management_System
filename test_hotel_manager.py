@@ -1,6 +1,6 @@
 """
-Module: test_hotel_manager_search_rooms.py
-Date: 11/21/2025
+Module: test_hotel_manager.py
+Date: 11/30/2025
 Programmer(s): Keano
 
 Brief Description:
@@ -33,6 +33,7 @@ Algorithms:
 import os
 import tempfile
 import unittest
+from unittest.mock import patch, MagicMock
 from hotel_manager import HotelManager
 
 
@@ -167,6 +168,75 @@ class TestSearchRooms(unittest.TestCase):
         """Tests that providing only a check-in or check-out date ignores date-based availability filtering."""
         rows = self.mgr.search_rooms(check_in="2025-12-10")  # missing check_out -> date logic ignored
         self.assertEqual(len(rows), 5)
+
+class TestReserveRoom(unittest.TestCase):
+    """A unit test for the HotelManager's reserve_room method."""
+
+    @patch('hotel_manager.DatabaseManager')
+    def setUp(self, MockDatabaseManager):
+        """Runs before each test. Creates a HotelManager with a fake database."""
+        # Creates a mock instance of the mock class "MockDatabaseManager"
+        self.mock_db = MockDatabaseManager.return_value
+        # Creates an instance of the HotelManager class with a pretend database, uses MockDatabaseManager instead because of @patch
+        self.mgr = HotelManager(db_name="any_fake_name.db")
+
+    def test_successful_reservation(self):
+        """Tests the ideal case: everything works and a reservation is made."""
+        # Arrange
+        self.mock_db.guest_exists.return_value = True
+        self.mock_db.room_exists.return_value = True
+        self.mock_db.get_room.return_value = {"price": 100.0}
+        mock_conn = self.mock_db.connect.return_value
+        mock_cursor = mock_conn.cursor.return_value
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.lastrowid = 42
+
+        # Act
+        reservation_id = self.mgr.reserve_room(guest_id=1, room_id=1, check_in="2025-12-01", check_out="2025-12-03")
+
+        # Assert
+        self.assertEqual(reservation_id, 42)
+        mock_cursor.execute.assert_any_call("BEGIN IMMEDIATE")
+        mock_cursor.execute.assert_any_call("COMMIT")
+        self.assertNotIn(unittest.mock.call("ROLLBACK"), mock_cursor.execute.call_args_list)
+
+    def test_fails_if_guest_not_found(self):
+        """Tests that the method correctly stops if the guest does not exist."""
+        # Arrange
+        self.mock_db.guest_exists.return_value = False
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.mgr.reserve_room(guest_id=999, room_id=1, check_in="2025-12-01", check_out="2025-12-02")
+        self.assertEqual(str(context.exception), "Guest does not exist.")
+
+    def test_fails_if_room_not_found(self):
+        """Tests that the method correctly stops if the room does not exist."""
+        # Arrange
+        self.mock_db.guest_exists.return_value = True
+        self.mock_db.room_exists.return_value = False
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.mgr.reserve_room(guest_id=1, room_id=999, check_in="2025-12-01", check_out="2025-12-02")
+        self.assertEqual(str(context.exception), "Room does not exist.")
+
+    def test_fails_if_room_is_unavailable_during_transaction(self):
+        """Tests the race condition: the room becomes booked at the last second."""
+        # Arrange
+        self.mock_db.guest_exists.return_value = True
+        self.mock_db.room_exists.return_value = True
+        self.mock_db.get_room.return_value = {"price": 100.0}
+        mock_conn = self.mock_db.connect.return_value
+        mock_cursor = mock_conn.cursor.return_value
+        mock_cursor.fetchone.return_value = (1, )
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.mgr.reserve_room(guest_id=1, room_id=1, check_in="2025-12-01", check_out="2025-12-03")
+
+        self.assertEqual(str(context.exception), "Room is no longer available for the selected dates")
+        mock_cursor.execute.assert_any_call("ROLLBACK")
 
 
 if __name__ == "__main__":
