@@ -411,3 +411,33 @@ class DatabaseManager:
             return cur.fetchone() is None
         finally:
             conn.close()
+
+    def get_available_rooms(self, check_in_date, check_out_date, num_guests, include_smoking):
+        check_in = check_in_date.isoformat()
+        check_out = check_out_date.isoformat()
+
+        query = """
+            SELECT r.room_id, r.room_number, r.capacity, r.price
+            FROM rooms r
+            LEFT JOIN reservations res
+                ON r.room_id = res.room_id
+                AND NOT (
+                    res.check_out_date <= ?
+                    OR
+                    res.check_in_date >= ?
+                )
+            WHERE r.capacity >= ?
+              AND (? = 1 OR r.smoking = 0)
+              AND res.room_id IS NULL
+            ORDER BY r.capacity ASC, r.room_number ASC;
+        """
+
+        params = (check_in, check_out, num_guests, include_smoking)
+
+        conn = self.connect()
+        cur = conn.cursor()
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        conn.close()
+
+        return rows

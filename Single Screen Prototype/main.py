@@ -8,11 +8,12 @@ from login_frame import LoginFrame
 from booking_records_frame import BookingRecordsFrame
 from metrics_frame import MetricsFrame
 from employee_frame import EmployeeProfileFrame
+from reservation_form_frame import ReservationFormFrame
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
 
-db = DatabaseManager(DB_PATH)
+db = DatabaseManager("hotel.db")
 
 BG_COLOR = "#2C3E50"
 FG_COLOR = "#ECF0F1"
@@ -23,6 +24,7 @@ FG_COLOR = "#ECF0F1"
 class HotelApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.db = db
         #Window properties
         self.title("Hotel Management")
         self.geometry("1920x1080")
@@ -50,7 +52,7 @@ class HotelApp(tk.Tk):
         #Screens made here:
         self.frames["login_screen"] = LoginFrame(self.container, self)
         self.frames["main_menu"] = MainMenuFrame(self.container, self)
-        #self.frames["new_reservation"] = NewReservationFrame(self.container, self)
+        self.frames["new_reservation"] = ReservationFormFrame(self.container, self)
         self.frames["rooms_status"] = RoomStatusFrame(self.container, self)
         self.frames["booking_records"] = BookingRecordsFrame(self.container,self)
         self.frames["metrics"] = MetricsFrame(self.container, self)
@@ -77,6 +79,7 @@ class MainMenuFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
         super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
+        self.db = db
 
         # Frame fills the container
         self.grid_rowconfigure(0, weight=1)
@@ -103,7 +106,7 @@ class MainMenuFrame(tk.Frame):
             text="New Reservation",
             font=("TkDefaultFont", 16),
             width=20,
-            command=lambda: controller.show_frame("rooms"),
+            command=lambda: controller.show_frame("new_reservation"),
             bg="#34495E",
             fg=FG_COLOR,
             activebackground="#3D566E",

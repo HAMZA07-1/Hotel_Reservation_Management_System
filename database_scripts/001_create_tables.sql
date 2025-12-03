@@ -38,8 +38,12 @@ CREATE TABLE IF NOT EXISTS guests (
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
     email TEXT NOT NULL,
-    phone TEXT,
-    address TEXT
+    phone_number TEXT,
+    address_line1 TEXT NOT NULL,
+    address_line2 TEXT,
+    city TEXT NOT NULL,
+    state TEXT NOT NULL,
+    postal_code TEXT NOT NULL
 );
 
 -- 3. RESERVATIONS TABLE
@@ -47,8 +51,9 @@ CREATE TABLE IF NOT EXISTS reservations (
     reservation_id INTEGER PRIMARY KEY,
     guest_id INTEGER NOT NULL,
     room_id INTEGER NOT NULL,
-    check_in_date DATETIME NOT NULL,   -- 'YYYY-MM-DD'
-    check_out_date DATETIME NOT NULL,  -- 'YYYY-MM-DD'
+    check_in_date DATE NOT NULL,   -- 'YYYY-MM-DD'
+    check_out_date DATE NOT NULL, -- 'YYYY-MM-DD'
+    num_guests INTEGER,
     total_price REAL NOT NULL,
     status TEXT NOT NULL,              -- Confirmed, Cancelled, Checked-in, Checked-out
 
