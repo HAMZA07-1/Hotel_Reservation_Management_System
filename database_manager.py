@@ -186,15 +186,20 @@ class DatabaseManager:
     # ---------------------------------------------------
     # Guest Methods
     # ---------------------------------------------------
-    def add_guest(self, first_name, last_name, email, phone, address):
+    def add_guest(self, first_name, last_name, email, phone, address1, address2, city, state, postal):
         conn = self.connect()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO guests (first_name, last_name, email, phone, address)
-            VALUES (?, ?, ?, ?, ?)
-        """, (first_name, last_name, email, phone, address))
+            INSERT INTO guests (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (first_name, last_name, email, phone, address1, address2, city, state, postal))
+
+        guest_id = cur.lastrowid
+
         conn.commit()
         conn.close()
+
+        return guest_id
 
     def get_guest(self, guest_id=None, email=None):
         if guest_id is None and email is None:
@@ -259,18 +264,37 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def get_room_price(self, room_id):
+        """
+        Returns the nightly price for a given room.
+        """
+        conn = self.connect()
+        cur = conn.cursor()
+
+        try:
+            cur.execute("SELECT price FROM rooms WHERE room_id = ?", (room_id,))
+            row = cur.fetchone()
+
+            if row is None:
+                raise ValueError(f"Room with ID {room_id} not found.")
+
+            return row[0]
+
+        finally:
+            conn.close()
+
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------
-    def add_reservation(self, guest_id, room_id, check_in_date, check_out_date, total_price, status):
+    def add_reservation(self, guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status):
         conn = self.connect()
         cur = conn.cursor()
         try:
             cur.execute("""
                 INSERT INTO reservations
-                (guest_id, room_id, check_in_date, check_out_date, total_price, status)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (guest_id, room_id, check_in_date, check_out_date, total_price, status))
+                (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status))
             conn.commit()
             new_id = cur.lastrowid
             print(f"[Debug] Reservation created with ID {new_id}")

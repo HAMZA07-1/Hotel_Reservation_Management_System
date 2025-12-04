@@ -59,7 +59,7 @@ class ReservationFormFrame(tk.Frame):
         )
         guest_frame.pack(fill="both")
 
-        # Variables
+        # Guest ID Variables
         self.first_name_var = tk.StringVar()
         self.last_name_var = tk.StringVar()
         self.email_var = tk.StringVar()
@@ -195,7 +195,7 @@ class ReservationFormFrame(tk.Frame):
             # ensure ISO strings sync
             sync_iso_vars()
 
-        # Build horizontal date selectors
+        # Horizontal date selectors
         # Row labels
         tk.Label(reserve_frame, text="Check-In:", bg=PANEL_BG, fg=FG_COLOR)\
             .grid(row=1, column=0, sticky="e", pady=6)
@@ -273,6 +273,23 @@ class ReservationFormFrame(tk.Frame):
             command=self.open_room_search_popup
         ).grid(row=4, column=0, columnspan=4, pady=10, sticky="e")
 
+        #Selected room label
+        self.selected_room_var = tk.StringVar(value="No room selected")
+
+        tk.Label(
+            reserve_frame,
+            text="Selected Room:",
+            bg=PANEL_BG,
+            fg=FG_COLOR,
+        ).grid(row=5, column=0, sticky="e", pady=(10,6))
+
+        tk.Label(
+            reserve_frame,
+            textvariable=self.selected_room_var,
+            bg=PANEL_BG,
+            fg=FG_COLOR,
+        ).grid(row=5, column=1, columnspan=3, sticky="w", pady=(10,6))
+
         # ============================================================
         # Buttons
         # ============================================================
@@ -306,6 +323,7 @@ class ReservationFormFrame(tk.Frame):
         self.state_var.set("")
         self.postal_var.set("")
         self.num_guests_var.set(1)
+        self.selected_room_var.set("No room selected")
 
         # reset dates to today / tomorrow
         today = date.today()
@@ -317,6 +335,11 @@ class ReservationFormFrame(tk.Frame):
         self.co_month.set(tomorrow.month)
         self.co_day.set(tomorrow.day)
         self.include_smoking_var.set(True)
+
+    #---------------------------------------------------------------------
+    def set_selected_room(self, room_id, room_number):
+        self.selected_room_id = room_id
+        self.selected_room_var.set(f"Room {room_number} (Id: {room_id})")
 
     # --------------------------------------------------------------------
     def open_room_search_popup(self):
@@ -353,35 +376,74 @@ class ReservationFormFrame(tk.Frame):
 
     # -------------------------------------------------------------------
     def submit_reservation(self):
-        # Basic validation here (expandable later)
-        if not self.first_name_var.get().strip():
-            messagebox.showerror("Error", "First name is required.")
+        # --- Collect Guest Info ---
+        first = self.first_name_var.get().strip()
+        last = self.last_name_var.get().strip()
+        email = self.email_var.get().strip()
+        phone = self.phone_var.get().strip()
+        addr1 = self.addr1_var.get().strip()
+        addr2 = self.addr2_var.get().strip()
+        city = self.city_var.get().strip()
+        state = self.state_var.get().strip()
+        postal = self.postal_var.get().strip()
+
+        # --- Validation ---
+        if not all([first, last, email, addr1, city, state, postal]):
+            messagebox.showerror("Missing Information", "Please complete all required guest fields.")
             return
 
-        if not self.last_name_var.get().strip():
-            messagebox.showerror("Error", "Last name is required.")
+        if not hasattr(self, "selected_room_id"):
+            messagebox.showerror("No Room Selected", "Please search and choose a room before submitting.")
             return
 
-        if not self.email_var.get().strip():
-            messagebox.showerror("Error", "Email is required.")
+        room_id = self.selected_room_id
+
+        check_in = self.check_in_var.get().strip()
+        check_out = self.check_out_var.get().strip()
+        num_guests = self.num_guests_var.get()
+
+        if not check_in or not check_out:
+            messagebox.showerror("Missing Dates", "Please select both check-in and check-out dates.")
             return
 
-        if not self.addr1_var.get().strip():
-            messagebox.showerror("Error", "Address Line 1 is required.")
+        # --- Validate date format + length of stay ---
+        try:
+            from datetime import datetime
+            d1 = datetime.strptime(check_in, "%Y-%m-%d")
+            d2 = datetime.strptime(check_out, "%Y-%m-%d")
+
+            if d2 <= d1:
+                messagebox.showerror("Invalid Dates", "Check-out date must be after check-in date.")
+                return
+
+            nights = (d2 - d1).days
+        except ValueError:
+            messagebox.showerror("Invalid Date Format", "Dates must be in YYYY-MM-DD format.")
             return
 
-        if not self.city_var.get().strip() or not self.state_var.get().strip():
-            messagebox.showerror("Error", "City and State required.")
-            return
+        # --- Step 1: Insert guest into database ---
+        guest_id = self.controller.db.add_guest(
+            first, last, email, phone,
+            addr1, addr2, city, state, postal
+        )
 
-        if not self.state_var.get().strip():
-            messagebox.showerror("Error", "State required.")
-            return
+        # --- Step 2: Calculate price ---
+        nightly_price = self.controller.db.get_room_price(room_id)
+        total_price = nightly_price * nights
 
-        if not self.postal_var.get().strip():
-            messagebox.showerror("Error", "Postal Code is required.")
-            return
+        # --- Step 3: Insert reservation ---
+        reservation_id = self.controller.db.add_reservation(
+            guest_id=guest_id,
+            room_id=room_id,
+            check_in_date=check_in,
+            check_out_date=check_out,
+            num_guests=num_guests,
+            total_price=total_price,
+            status="Confirmed"
+        )
 
-        # Placeholder - actual insert logic to be added later
-        messagebox.showinfo("Success", "Reservation saved (database insert coming soon!)")
-        self.controller.show_frame("main_menu")
+        # --- Confirmation ---
+        messagebox.showinfo(
+            "Reservation Created",
+            f"Reservation #{reservation_id} created successfully!"
+        )

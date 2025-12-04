@@ -63,7 +63,7 @@ class HotelApp(tk.Tk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         #First Frame shown on program start
-        self.show_frame("login_screen")
+        self.show_frame("main_menu")
 
     #def to show new screen
     def show_frame(self, name):
