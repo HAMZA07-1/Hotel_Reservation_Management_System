@@ -1,6 +1,6 @@
 """
 Module: database_manager.py
-Date: 11/29/2025
+Date: 12/04/2025
 Programmer: Keano, Daniel, Hamza, Allen
 
 Description:
@@ -17,18 +17,21 @@ Important Functions:
 - connect(): Returns a new database connection object with foreign key enforcement enabled.
   Input: None.
   Output: sqlite3.Connection object.
-- add_guest/add_room/add_reservation(...): Functions to insert new records into their respective tables.
-  Input: Varies by function, typically includes all necessary column data for a new record.
-  Output: Reservation ID for add_reservation, otherwise None.
+- add_guest(...): Inserts a new guest record into the database.
+  Input: first_name, last_name, email, address_line1, city, state, postal_code, phone_number (optional), address_line2 (optional).
+  Output: guest_id (int).
+- add_room(...): Inserts a new room record into the database.
+  Input: room_number, room_type, capacity, price, available.
+  Output: None.
 - get_guest/get_room(...): Functions to retrieve a single record by its ID or another unique identifier.
   Input: ID or unique field (e.g., email, room_number).
   Output: sqlite3.Row object representing the record, or None if not found.
+- guest_exists/room_exists(...): Functions to check if a guest or room exists.
+  Input: guest_id or email for guests; room_id or room_number for rooms.
+  Output: bool.
 - cancel_reservation(reservation_id, guest_id): Updates a reservation's status to 'Cancelled'.
   Input: reservation_id (int), guest_id (int).
   Output: bool indicating success.
-- view_reservations(): Retrieves a list of all reservations with joined guest and room details.
-  Input: None.
-  Output: List of sqlite3.Row objects.
 - is_room_available(...): Checks if a room is available for a given date range by checking for overlapping
   reservations with 'occupied' statuses.
   Input: room_number (int), check_in_date (str), check_out_date (str).
@@ -36,7 +39,10 @@ Important Functions:
 
 Important Data Structures:
 - OCCUPIED_STATUSES: A tuple containing reservation statuses that indicate a room is physically occupied
-  ('Confirmed', 'Checked-in', 'Checked-out'). This is used to determine availability conflicts.
+  ('Confirmed', 'Checked-in'). This is used to determine availability conflicts.
+
+Notes:
+- Reservation creation is handled by HotelManager.reserve_room() which provides transactional safety.
 """
 import sqlite3
 from pathlib import Path
@@ -45,7 +51,7 @@ from pathlib import Path
 class DatabaseManager:
     """Handles all database operations for rooms, guests, and reservations."""
 
-    OCCUPIED_STATUSES = ("Confirmed", "Checked-in", "Checked-out")
+    OCCUPIED_STATUSES = ("Confirmed", "Checked-in")
 
     def __init__(self, db_name="hotel.db"):
         self.db_name = db_name
@@ -54,45 +60,6 @@ class DatabaseManager:
     # ---------------------------------------------------
     # Database Setup
     # ---------------------------------------------------
-    def create_tables(self):
-        """Create minimal tables (legacy/test-only). Prefer external SQL scripts for schema."""
-        conn = self.connect()
-        cur = conn.cursor()
-        cur.executescript("""
-            CREATE TABLE IF NOT EXISTS rooms (
-                room_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_number INTEGER,
-                room_type TEXT,
-                smoking INTEGER DEFAULT 0,
-                capacity INTEGER,
-                price REAL,
-                is_available INTEGER
-            );
-
-            CREATE TABLE IF NOT EXISTS guests (
-                guest_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                first_name TEXT,
-                last_name TEXT,
-                email TEXT,
-                phone TEXT,
-                address TEXT
-            );
-
-            CREATE TABLE IF NOT EXISTS reservations (
-                reservation_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guest_id INTEGER,
-                room_id INTEGER,
-                check_in_date TEXT,
-                check_out_date TEXT,
-                total_price REAL,
-                status TEXT,
-                FOREIGN KEY (guest_id) REFERENCES guests (guest_id),
-                FOREIGN KEY (room_id) REFERENCES rooms (room_id)
-            );
-        """)
-        conn.commit()
-        conn.close()
-        print("[Setup] Tables created or verified.")
 
     def create_if_missing(self):
         """Ensure the database exists with required tables and initial data using external SQL scripts.
@@ -186,22 +153,33 @@ class DatabaseManager:
     # ---------------------------------------------------
     # Guest Methods
     # ---------------------------------------------------
-    def add_guest(self, first_name, last_name, email, phone, address1, address2, city, state, postal):
+    def add_guest(
+        self,
+        first_name: str,
+        last_name: str,
+        email: str,
+        address_line1: str,
+        city: str,
+        state: str,
+        postal_code: str,
+        phone_number: str = None,
+        address_line2: str = None
+        ) -> int:
+        """Add a new guest to the database. Optional fields default to NULL."""
         conn = self.connect()
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO guests (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (first_name, last_name, email, phone, address1, address2, city, state, postal))
+        try:
+            cur.execute("""
+                INSERT INTO guests (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code))
+            conn.commit()
+            return cur.lastrowid
+        finally:
+            conn.close()
 
-        guest_id = cur.lastrowid
-
-        conn.commit()
-        conn.close()
-
-        return guest_id
-
-    def get_guest(self, guest_id=None, email=None):
+    def get_guest(self, guest_id: int = None, email: str = None) -> sqlite3.Row | None:
+        """Retrieve a guest by guest_id or email. Returns None if not found."""
         if guest_id is None and email is None:
             raise ValueError("Provide guest_id or email to search for guest.")
         conn = self.connect()
@@ -286,25 +264,6 @@ class DatabaseManager:
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------
-    def add_reservation(self, guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status):
-        conn = self.connect()
-        cur = conn.cursor()
-        try:
-            cur.execute("""
-                INSERT INTO reservations
-                (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status))
-            conn.commit()
-            new_id = cur.lastrowid
-            print(f"[Debug] Reservation created with ID {new_id}")
-            return new_id
-        except Exception as e:
-            print(f"[Error] Failed to add reservation: {e}")
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
 
     def cancel_reservation(self, reservation_id: int, guest_id: int) -> bool:
         conn = self.connect()
@@ -356,40 +315,6 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def view_reservations(self):
-        conn = None
-        try:
-            conn = self.connect()
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-
-            query = """
-            SELECT 
-                r.reservation_id,
-                g.first_name || ' ' || g.last_name AS guest_name,
-                r.room_id,
-                COALESCE(rm.room_number, r.room_id) AS room_number,
-                r.check_in_date,
-                r.check_out_date,
-                r.total_price,
-                r.status
-            FROM reservations AS r
-            JOIN guests AS g ON r.guest_id = g.guest_id
-            LEFT JOIN rooms AS rm ON r.room_id = rm.room_id
-            ORDER BY r.reservation_id ASC;
-            """
-
-            cur.execute(query)
-            rows = cur.fetchall()
-            print("[Debug] view_reservations fetched:", len(rows), "rows")
-            return rows
-        except Exception as e:
-            print("[Error view_reservations]:", e)
-            return []
-        finally:
-            if conn is not None:
-                conn.close()
-
     def execute_query(self, query: str, params: tuple = (), fetch_all: bool = True):
         """Execute a given SQL query and return the results. Commits modifications automatically."""
         conn = self.connect()
@@ -436,15 +361,19 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    # Can be removed if reserve_room has same functionality
     def get_available_rooms(self, check_in_date, check_out_date, num_guests, include_smoking):
         check_in = check_in_date.isoformat()
         check_out = check_out_date.isoformat()
+        occ = self.OCCUPIED_STATUSES
+        occ_placeholders = ", ".join(["?"] * len(occ))
 
-        query = """
+        query = f"""
             SELECT r.room_id, r.room_number, r.capacity, r.price
             FROM rooms r
             LEFT JOIN reservations res
                 ON r.room_id = res.room_id
+                AND res.status IN ({occ_placeholders})
                 AND NOT (
                     res.check_out_date <= ?
                     OR
