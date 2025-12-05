@@ -385,7 +385,7 @@ class DatabaseManager:
             ORDER BY r.capacity ASC, r.room_number ASC;
         """
 
-        params = (check_in, check_out, num_guests, include_smoking)
+        params = (*occ, check_in, check_out, num_guests, include_smoking)
 
         conn = self.connect()
         cur = conn.cursor()

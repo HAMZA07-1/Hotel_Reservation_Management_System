@@ -41,8 +41,12 @@ class ReservationFormFrame(tk.Frame):
         left_col.grid(row=0, column=0, padx=40)
 
         # Right column frame (Reservation Details)
+        middle_col = tk.Frame(main_container, bg=BG_COLOR)
+        middle_col.grid(row=0, column=1, padx=40)
+
+        #Right column frame (Payment Details)
         right_col = tk.Frame(main_container, bg=BG_COLOR)
-        right_col.grid(row=0, column=1, padx=40)
+        right_col.grid(row=0, column=2, padx=40)
 
         # ============================================================
         # SECTION 1 — Guest Information (LEFT)
@@ -125,7 +129,7 @@ class ReservationFormFrame(tk.Frame):
         # SECTION 2 — Reservation Details (RIGHT)
         # ============================================================
         reserve_frame = tk.LabelFrame(
-            right_col,
+            middle_col,
             text="Reservation Details",
             bg=PANEL_BG,
             fg=FG_COLOR,
@@ -140,7 +144,7 @@ class ReservationFormFrame(tk.Frame):
         self.num_guests_var = tk.IntVar(value=1)
         self.include_smoking_var = tk.BooleanVar(value=True)
 
-        tk.Label(reserve_frame, text="Number of Guests:", bg=PANEL_BG, fg=FG_COLOR)\
+        tk.Label(reserve_frame, text="Number of Guests (Max 6):", bg=PANEL_BG, fg=FG_COLOR)\
             .grid(row=0, column=0, sticky="e", pady=6)
         tk.Spinbox(reserve_frame, from_=1, to=20, textvariable=self.num_guests_var, width=5)\
             .grid(row=0, column=1, pady=6, sticky="w")
@@ -291,6 +295,88 @@ class ReservationFormFrame(tk.Frame):
         ).grid(row=5, column=1, columnspan=3, sticky="w", pady=(10,6))
 
         # ============================================================
+        # SECTION 3 — Payment Details (RIGHT)
+        # ============================================================
+        payment_frame = tk.LabelFrame(
+            right_col,
+            text="Payment Details",
+            bg=PANEL_BG,
+            fg=FG_COLOR,
+            padx=20,
+            pady=20,
+            width=600,
+            labelanchor="n"
+        )
+        payment_frame.pack(fill="both")
+
+        # ------------------------------------------
+        # Payment method radio buttons
+        # ------------------------------------------
+        self.payment_method = tk.StringVar(value="card")  # default
+        self.is_paid_var = tk.IntVar(value=1)
+
+        cash_radio = ttk.Radiobutton(
+            payment_frame,
+            text="Pay with Cash at Check-In",
+            variable=self.payment_method,
+            value="cash",
+            command=self.toggle_payment_fields
+        )
+        cash_radio.grid(row=0, column=0, sticky="w", pady=2)
+
+        card_radio = ttk.Radiobutton(
+            payment_frame,
+            text="Credit Card",
+            variable=self.payment_method,
+            value="card",
+            command=self.toggle_payment_fields
+        )
+        card_radio.grid(row=1, column=0, sticky="w", pady=2)
+
+        # ------------------------------------------
+        # CREDIT CARD FIELDS — inside a sub-frame
+        # ------------------------------------------
+        self.card_frame = tk.Frame(payment_frame, bg=PANEL_BG)
+        self.card_frame.grid(row=2, column=0, columnspan=2, sticky="w", pady=10)
+
+        # Cardholder
+        tk.Label(self.card_frame, text="Cardholder Name:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=0, column=0, sticky="w")
+        self.cardholder_var = tk.StringVar()
+        self.cardholder_entry = tk.Entry(self.card_frame, textvariable=self.cardholder_var)
+        self.cardholder_entry.grid(row=0, column=1, pady=2, padx=5)
+
+        # Card Number (formatted)
+        tk.Label(self.card_frame, text="Card Number:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=1, column=0, sticky="w")
+        self.card_number_var = tk.StringVar()
+        self.card_number_entry = tk.Entry(self.card_frame, textvariable=self.card_number_var)
+        self.card_number_entry.grid(row=1, column=1, pady=2, padx=5)
+        # bind to formatting (KeyRelease so we can reformat after typing)
+        self.card_number_entry.bind("<KeyRelease>", lambda e: self.format_card_number())
+
+        # Expiration (MM/YY)
+        tk.Label(self.card_frame, text="Expiration (MM/YY):", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=2, column=0, sticky="w")
+        self.card_exp_var = tk.StringVar()
+        self.card_exp_entry = tk.Entry(self.card_frame, textvariable=self.card_exp_var, width=8)
+        self.card_exp_entry.grid(row=2, column=1, sticky="w", pady=2)
+        self.card_exp_entry.bind("<KeyRelease>", lambda e: self.format_expiry())
+
+        # CVV
+        tk.Label(self.card_frame, text="CVV:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=3, column=0, sticky="w")
+        self.card_cvv_var = tk.StringVar()
+        self.card_cvv_entry = tk.Entry(self.card_frame, textvariable=self.card_cvv_var, width=6, show="*")
+        self.card_cvv_entry.grid(row=3, column=1, sticky="w", pady=2)
+        # optional: restrict CVV characters to digits only on key release
+        self.card_cvv_entry.bind("<KeyRelease>",
+                                 lambda e: self.card_cvv_var.set(''.join(filter(str.isdigit, self.card_cvv_var.get()))))
+
+        # Hide or show based on initial method selection
+        self.toggle_payment_fields()
+
+        # ============================================================
         # Buttons
         # ============================================================
         button_frame = tk.Frame(wrapper, bg=BG_COLOR)
@@ -367,7 +453,13 @@ class ReservationFormFrame(tk.Frame):
         self.check_in_var.set(check_in_date.isoformat())
         self.check_out_var.set(check_out_date.isoformat())
 
+        #Validation number of guests more than 0
         num_guests = self.num_guests_var.get()
+
+        if num_guests <= 0:
+            messagebox.showerror("Invalid Number", "Number of guests must be greater than 0.")
+            return
+
         include_smoking = 1 if self.include_smoking_var.get() else 0
 
         # Pass Python date objects to the popup (DB layer will convert them to strings as needed)
@@ -421,29 +513,240 @@ class ReservationFormFrame(tk.Frame):
             messagebox.showerror("Invalid Date Format", "Dates must be in YYYY-MM-DD format.")
             return
 
-        # --- Step 1: Insert guest into database ---
+        # Validate payment method
+        payment_method = self.payment_method.get()
+
+        if payment_method == "card":
+            # collect raw data
+            cardholder = self.cardholder_var.get().strip()
+            cardnum_formatted = self.card_number_var.get().strip()
+            cardnum_digits = self.clean_digits(cardnum_formatted)
+            exp = self.card_exp_var.get().strip()
+            cvv = self.card_cvv_var.get().strip()
+
+            # quick checks
+            if not all([cardholder, cardnum_digits, exp, cvv]):
+                messagebox.showerror("Missing Payment Info", "Please complete all credit card fields.")
+                return
+
+            self.is_paid_var.set(1)
+
+            # expiry validate MM/YY and not expired
+            try:
+                mm, yy = exp.split("/")
+                mm = int(mm);
+                yy = int(yy)
+                if mm < 1 or mm > 12:
+                    raise ValueError
+                # Interpret 2-digit year (assume 2000+)
+                this_year = date.today().year % 100
+                this_full_year = date.today().year
+                exp_year_full = 2000 + yy if yy <= 99 else yy
+                # create date as last day of that month
+                from calendar import monthrange
+                last_day = monthrange(exp_year_full, mm)[1]
+                expiry_date = date(exp_year_full, mm, last_day)
+                if expiry_date < date.today():
+                    messagebox.showerror("Card Expired", "The card expiry date is in the past.")
+                    return
+            except Exception:
+                messagebox.showerror("Invalid Expiration", "Expiration must be MM/YY and valid.")
+                return
+
+            # Luhn
+            if not self.luhn_check(cardnum_digits):
+                messagebox.showerror("Invalid Card", "Card number failed Luhn validation.")
+                return
+
+            # CVV
+            if not self.validate_cvv(cvv, cardnum_digits):
+                messagebox.showerror("Invalid CVV", "CVV must be numeric and length appropriate for card type.")
+                return
+
+            # all payment validations passed; simulate processing
+            amount = 0.0
+            try:
+                nightly_price = self.controller.db.get_room_price(room_id)
+                amount = nightly_price * nights
+            except Exception:
+                nightly_price = 0.0
+                amount = 0.0
+
+            # Show processor modal and simulate result.
+            proc_win, finish = self.show_payment_processor(amount, cardnum_digits[-4:],
+                callback=lambda ok: self._after_payment(ok, first, last, email, phone, addr1,
+                addr2, city, state, postal, room_id, check_in, check_out, num_guests, nights))
+            # decide success: we can just approve if validation succeeded; but to simulate occasional failures you could randomize
+            # here we'll approve deterministically
+            self.after(900, lambda: finish(True))
+
+            return  # insertion continues in _after_payment
+
+        else:
+            # Cash: proceed immediately
+            # --- Step 1: Insert guest into database ---
+            guest_id = self.controller.db.add_guest(
+                first, last, email, phone,
+                addr1, addr2, city, state, postal
+            )
+
+            self.is_paid_var.set(0)
+
+            # --- Step 2: Insert reservation ---
+            reservation_id = self.controller.hotel.reserve_room(
+                guest_id=guest_id,
+                room_id=room_id,
+                check_in=check_in,
+                check_out=check_out,
+                num_guests=num_guests,
+                status="Confirmed",
+                is_paid=self.is_paid_var.get(),
+            )
+
+            messagebox.showinfo(
+                "Reservation Created",
+                f"Reservation #{reservation_id} created successfully!"
+            )
+
+    # ------------------------
+    # Credit Card helpers & validation
+    # ------------------------
+    def clean_digits(self, s: str) -> str:
+        return "".join(ch for ch in s if ch.isdigit())
+
+    def format_card_number(self):
+        """Format card number into groups of 4 digits while preserving cursor reasonably."""
+        s = self.clean_digits(self.card_number_var.get())
+        # limit to 19 digits (some cards like Amex 15, add spacing — we'll allow up to 19)
+        s = s[:19]
+        grouped = " ".join(s[i:i+4] for i in range(0, len(s), 4))
+        # avoid infinite loop of writes
+        if grouped != self.card_number_var.get():
+            # set and keep the cursor near the end
+            self.card_number_var.set(grouped)
+
+            try:
+                self.card_number_entry.icursor(tk.END) #keeps cursor at end of textbox
+            except:
+                pass
+
+    def format_expiry(self):
+        """Auto-insert slash to format MM/YY. Allow partial input while typing."""
+        raw = self.clean_digits(self.card_exp_var.get())
+        if len(raw) == 0:
+            self.card_exp_var.set("")
+            return
+        # take at most four digits for MMYY
+        raw = raw[:4]
+        if len(raw) <= 2:
+            text = raw
+        else:
+            text = raw[:2] + "/" + raw[2:]
+        if text != self.card_exp_var.get():
+            self.card_exp_var.set(text)
+            try:
+                self.card_exp_entry.icursor(tk.END) #keeps cursor at end of textbox
+            except:
+                pass
+
+    def luhn_check(self, card_number: str) -> bool:
+        """Return True if card_number (digits only) passes Luhn checksum."""
+        digits = [int(d) for d in card_number if d.isdigit()]
+        if len(digits) < 12:
+            return False
+        checksum = 0
+        dbl = False
+        for d in reversed(digits):
+            if dbl:
+                d = d * 2
+                if d > 9:
+                    d -= 9
+            checksum += d
+            dbl = not dbl
+        return checksum % 10 == 0
+
+    def validate_cvv(self, cvv: str, card_number_digits: str) -> bool:
+        """Basic CVV validation: 3 digits for most cards, 4 for Amex (starts with 34 or 37)."""
+        if not cvv.isdigit():
+            return False
+        if len(card_number_digits) >= 2 and card_number_digits[:2] in ("34", "37"):
+            return len(cvv) == 4  # Amex
+        return len(cvv) == 3
+
+    # -------------------------
+    # Payment processor UI
+    # -------------------------
+    def show_payment_processor(self, amount: float, card_last4: str, callback):
+        """Display a modal fake payment processing dialog.
+        callback(success: bool, auth_code: Optional[str]) will be called after processing.
+        """
+        proc = tk.Toplevel(self)
+        proc.title("Processing Payment")
+        proc.transient(self)
+        proc.grab_set()  # modal
+
+        proc.geometry("320x140")
+        proc.configure(bg=BG_COLOR)
+
+        ttk.Label(proc, text="Processing payment...", background=BG_COLOR, foreground=FG_COLOR, font=("Arial", 12, "bold"))\
+            .pack(pady=(12, 6))
+
+        from tkinter.ttk import Progressbar
+        pb = Progressbar(proc, mode="indeterminate", length=260)
+        pb.pack(pady=(6, 10))
+        pb.start(12)
+
+        status_label = ttk.Label(proc, text="Authorizing...", background=BG_COLOR, foreground=FG_COLOR)
+        status_label.pack()
+
+        # Simulate processing delay and result
+        def finish(success: bool):
+            pb.stop()
+            status_label.config(text="Approved" if success else "Declined")
+            # show auth code or declined message
+            if success:
+                auth = f"AUTH-{int(100000 + (hash(card_last4) % 899999))}"
+                ttk.Label(proc, text=f"Auth Code: {auth}", background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
+            else:
+                ttk.Label(proc, text="Payment declined. Try a different card or cash.", background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
+
+            # close after short delay and call callback
+            proc.after(3000, lambda: (proc.grab_release(), proc.destroy(), callback(success)))
+
+        # We'll simulate a 3s processing + then return result. The calling code should decide pass/fail.
+        # for realism, leave the decision to caller via callback parameter, but we can compute here and pass it:
+        # We'll wait 1200ms then call finish(...) with value set by callback_decision function below.
+        return proc, finish
+
+
+    def toggle_payment_fields(self):
+        #Show or hide credit card fields depending on the payment method.
+        if self.payment_method.get() == "card":
+            self.card_frame.grid()
+        else:
+            self.card_frame.grid_remove()
+
+    def _after_payment(self, success, first, last, email, phone, addr1, addr2, city, state, postal, room_id, check_in,
+                       check_out, num_guests, nights):
+        """Called after fake processor finishes. If success -> insert guest & reservation."""
+        if not success:
+            messagebox.showerror("Payment Failed", "Payment was declined. Please try another card or choose cash.")
+            return
+
+        # create guest
         guest_id = self.controller.db.add_guest(
             first, last, email, phone,
             addr1, addr2, city, state, postal
         )
 
-        # --- Step 2: Calculate price ---
-        nightly_price = self.controller.db.get_room_price(room_id)
-        total_price = nightly_price * nights
-
-        # --- Step 3: Insert reservation ---
-        reservation_id = self.controller.db.add_reservation(
+        reservation_id = self.controller.hotel.reserve_room(
             guest_id=guest_id,
             room_id=room_id,
-            check_in_date=check_in,
-            check_out_date=check_out,
+            check_in=check_in,
+            check_out=check_out,
             num_guests=num_guests,
-            total_price=total_price,
-            status="Confirmed"
+            status="Confirmed",
+            is_paid=self.is_paid_var.get()
         )
 
-        # --- Confirmation ---
-        messagebox.showinfo(
-            "Reservation Created",
-            f"Reservation #{reservation_id} created successfully!"
-        )
+        messagebox.showinfo("Reservation Created", f"Reservation #{reservation_id} created successfully!")

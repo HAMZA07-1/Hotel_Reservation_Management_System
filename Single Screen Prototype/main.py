@@ -9,6 +9,7 @@ from booking_records_frame import BookingRecordsFrame
 from metrics_frame import MetricsFrame
 from employee_frame import EmployeeProfileFrame
 from reservation_form_frame import ReservationFormFrame
+from hotel_manager import HotelManager
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
@@ -24,7 +25,8 @@ FG_COLOR = "#ECF0F1"
 class HotelApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.db = db
+        self.db = DatabaseManager()
+        self.hotel = HotelManager(self.db)
         #Window properties
         self.title("Hotel Management")
         self.geometry("1920x1080")
@@ -214,7 +216,7 @@ class MainMenuFrame(tk.Frame):
                 self.metrics_btn.pack(pady=10)
             if not self.employees_btn.winfo_ismapped():
                 self.employees_btn.pack(pady=10)
-        else:
+        elif role == "Employee":
             # Employees cannot see these
             if self.metrics_btn.winfo_ismapped():
                 self.metrics_btn.pack_forget()

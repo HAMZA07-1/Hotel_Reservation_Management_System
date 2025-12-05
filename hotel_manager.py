@@ -41,12 +41,9 @@ from database_manager import DatabaseManager
 class HotelManager:
     """Handles hotel operations: room search, reservations, cancellations and pricing."""
 
-    def __init__(self, db_name: str | None = None):
+    def __init__(self, db: DatabaseManager):
         """Initializes the HotelManager, creating a DatabaseManager instance."""
-        if db_name:
-            self.db = DatabaseManager(db_name)
-        else:
-            self.db = DatabaseManager()
+        self.db = db
 
     def _parse_dates(self, check_in: str, check_out: str) -> tuple[str, str, int]:
         """Private helper function, validates date text and calculates number of nights."""
@@ -220,7 +217,9 @@ class HotelManager:
             check_in: str,
             check_out: str,
             num_guests: int = None,
-            status: str = "Confirmed") -> int: #returns new reservation id
+            status: str = "Confirmed",
+            is_paid: int = None) -> int: #returns new reservation id
+
         """Creates a new reservation in the database with transactional safety."""
         # Date parsing and initial validation
         ci_iso, co_iso, _ = self._parse_dates(check_in, check_out)
@@ -265,10 +264,10 @@ class HotelManager:
 
             cur.execute(
                 """
-                INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status, is_paid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (guest_id, room_id, ci_iso, co_iso, num_guests, total_price, status),
+                (guest_id, room_id, ci_iso, co_iso, num_guests, total_price, status, is_paid),
             )
 
             reservation_id = cur.lastrowid
