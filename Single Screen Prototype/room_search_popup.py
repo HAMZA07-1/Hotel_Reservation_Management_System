@@ -4,6 +4,10 @@ from tkinter import ttk, messagebox
 class RoomSearchPopup(tk.Toplevel):
     def __init__(self, parent, controller, check_in, check_out, num_guests, include_smoking):
         super().__init__(parent)
+        self.parent_frame = parent
+        # Tell controller what frame popup should return data to
+        controller.current_frame = parent
+
         self.title("Available Rooms")
         self.controller = controller
 
@@ -59,13 +63,16 @@ class RoomSearchPopup(tk.Toplevel):
             messagebox.showerror("Error", "Please select a room.")
             return
 
+        # selected = iid = room_id
+        room_id = int(selected)
+
         room_values = self.tree.item(selected, "values")
-        room_id = room_values[0]
+        room_number = room_values[0]  # correct now
 
-        # store the selected room back into your main frame
-        self.controller.selected_room_id = room_id
+        # Send the selection back to the parent ReservationFormFrame
+        self.controller.current_frame.set_selected_room(room_id, room_number)
 
-        messagebox.showinfo("Room Selected", f"Room {room_id} selected.")
+        messagebox.showinfo("Room Selected", f"Room {room_number} selected.")
         self.destroy()
 
     def sort_column(self, col, reverse):
@@ -84,7 +91,3 @@ class RoomSearchPopup(tk.Toplevel):
 
         # Reverse sort direction next click
         self.tree.heading(col, command=lambda: self.sort_column(col, not reverse))
-
-
-
-

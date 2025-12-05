@@ -242,6 +242,25 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def get_room_price(self, room_id):
+        """
+        Returns the nightly price for a given room.
+        """
+        conn = self.connect()
+        cur = conn.cursor()
+
+        try:
+            cur.execute("SELECT price FROM rooms WHERE room_id = ?", (room_id,))
+            row = cur.fetchone()
+
+            if row is None:
+                raise ValueError(f"Room with ID {room_id} not found.")
+
+            return row[0]
+
+        finally:
+            conn.close()
+
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------
@@ -366,7 +385,7 @@ class DatabaseManager:
             ORDER BY r.capacity ASC, r.room_number ASC;
         """
 
-        params = (*occ, check_in, check_out, num_guests, include_smoking)
+        params = (check_in, check_out, num_guests, include_smoking)
 
         conn = self.connect()
         cur = conn.cursor()
