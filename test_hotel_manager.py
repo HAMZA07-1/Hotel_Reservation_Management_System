@@ -1,34 +1,55 @@
 """
 Module: test_hotel_manager.py
-Date: 11/30/2025
+Date: 12/04/2025
 Programmer(s): Keano
 
 Brief Description:
-This module contains a comprehensive unit test suite for the `search_rooms` method of the `HotelManager` class. It uses the `unittest` framework to verify the complex filtering and sorting logic, including date-based availability checks.
+This module contains test suites for the `HotelManager` class. It uses the `unittest` framework to verify:
+1. The complex filtering and sorting logic of `search_rooms` (integration test with temporary database).
+2. The `reserve_room` method's validation and transactional logic (unit test with mocks).
 
 Class: TestSearchRooms
-Brief Description: A test suite that sets up a detailed, temporary database to test various search scenarios.
+Brief Description: An integration test suite that sets up a detailed, temporary database to test various search scenarios.
 
 Important Functions:
 - setUp() -> None
   - Input: None
   - Output: None
-  - Description: Runs before each test. It creates a temporary database and populates it with a specific, deterministic set of rooms, guests, and reservations. This controlled dataset is crucial for verifying that the search filters work correctly.
+  - Description: Runs before each test. Creates a temporary database and populates it with a specific, deterministic set of rooms, guests, and reservations.
 - tearDown() -> None
   - Input: None
   - Output: None
   - Description: Runs after each test to delete the temporary database, ensuring each test is independent.
 - test_...() methods: Each method tests a specific search scenario.
   - `test_basic_attribute_filters()`: Checks filtering by room type and smoking status.
-  - `test_availability_mode_free_excludes_overlaps()`: Verifies that the search correctly identifies and excludes rooms that have conflicting reservations for a given date range.
-  - `test_availability_mode_occupied_includes_only_overlaps()`: Verifies the inverse of the above, finding only rooms that are booked.
+  - `test_availability_mode_free_excludes_overlaps()`: Verifies that the search correctly excludes rooms with conflicting reservations.
+  - `test_availability_mode_occupied_includes_only_overlaps()`: Verifies the inverse, finding only rooms that are booked.
   - `test_sorting_desc_capacity_then_tiebreaker()`: Checks if the sorting functionality works as expected.
+  - `test_invalid_is_available_raises()`: Tests that invalid 'is_available' values raise ValueError.
+  - `test_partial_dates_ignored()`: Tests that partial date inputs ignore date-based availability filtering.
+
+Class: TestReserveRoom
+Brief Description: A unit test suite using mocks to test the `reserve_room` method's validation and transactional behavior.
+
+Important Functions:
+- setUp() -> None
+  - Input: None
+  - Output: None
+  - Description: Runs before each test. Creates a HotelManager with a mocked DatabaseManager to isolate business logic.
+- test_...() methods: Each method tests a specific reservation scenario.
+  - `test_successful_reservation()`: Tests the ideal case where a reservation is successfully created.
+  - `test_fails_if_guest_not_found()`: Tests validation when guest does not exist.
+  - `test_fails_if_room_not_found()`: Tests validation when room does not exist.
+  - `test_fails_if_num_guests_exceeds_capacity()`: Tests validation when num_guests exceeds room capacity.
+  - `test_fails_if_room_is_unavailable_during_transaction()`: Tests the race condition handling when room becomes booked during transaction.
 
 Important Data Structures:
-- Temporary Database with Seed Data: The `setUp` method creates a rich, temporary dataset that includes rooms with different properties and pre-existing reservations. This is essential for testing the interactions between different search filters.
+- Temporary Database (TestSearchRooms): A controlled dataset with rooms, guests, and reservations for testing search filters.
+- Mock DatabaseManager (TestReserveRoom): A mocked database layer to isolate and test business logic without actual database operations.
 
 Algorithms:
-- Data-Driven Testing: The structure of this test class is a form of data-driven testing. A known set of data is inserted, and each test function asserts that a specific query against that data produces the exact, expected result. This is a robust way to validate complex query logic.
+- Data-Driven Testing (TestSearchRooms): Known data is inserted, and tests assert that queries produce exact, expected results.
+- Behavior-Driven Testing (TestReserveRoom): Mocks simulate database responses to verify method behavior under various conditions.
 """
 import os
 import tempfile
@@ -66,12 +87,12 @@ class TestSearchRooms(unittest.TestCase):
             )
         # Seed guests
         guests = [
-            ("Alice", "Smith", "alice@example.com", "123", "Addr1"),
-            ("Bob", "Jones", "bob@example.com", "456", "Addr2"),
+            ("Alice", "Smith", "alice@example.com", "123-456-7890", "123 Main St", "Los Angeles", "CA", "90001"),
+            ("Bob", "Jones", "bob@example.com", "456-789-0123", "456 Oak Ave", "San Diego", "CA", "92101"),
         ]
         for g in guests:
             self.db.execute_query(
-                "INSERT INTO guests (first_name, last_name, email, phone, address) VALUES (?,?,?,?,?)",
+                "INSERT INTO guests (first_name, last_name, email, phone_number, address_line1, city, state, postal_code) VALUES (?,?,?,?,?,?,?,?)",
                 g,
             )
         # Map ids
@@ -220,6 +241,18 @@ class TestReserveRoom(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.mgr.reserve_room(guest_id=1, room_id=999, check_in="2025-12-01", check_out="2025-12-02")
         self.assertEqual(str(context.exception), "Room does not exist.")
+
+    def test_fails_if_num_guests_exceeds_capacity(self):
+        """Tests that reservation fails when num_guests exceeds room capacity."""
+        # Arrange
+        self.mock_db.guest_exists.return_value = True
+        self.mock_db.room_exists.return_value = True
+        self.mock_db.get_room.return_value = {"price": 100.0, "capacity": 2}
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.mgr.reserve_room(guest_id=1, room_id=1, check_in="2025-12-01", check_out="2025-12-03", num_guests=5)
+        self.assertEqual(str(context.exception), "Number of guests exceeds room capacity.")
 
     def test_fails_if_room_is_unavailable_during_transaction(self):
         """Tests the race condition: the room becomes booked at the last second."""

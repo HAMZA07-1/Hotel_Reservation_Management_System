@@ -219,6 +219,7 @@ class HotelManager:
             room_id: int,
             check_in: str,
             check_out: str,
+            num_guests: int = None,
             status: str = "Confirmed") -> int: #returns new reservation id
         """Creates a new reservation in the database with transactional safety."""
         # Date parsing and initial validation
@@ -231,6 +232,11 @@ class HotelManager:
             raise ValueError("Room does not exist.")
 
         total_price = self.calculate_total_price(room_id, check_in, check_out)
+
+        if num_guests is not None:
+            room = self.db.get_room(room_id=room_id)
+            if num_guests > room["capacity"]:
+                raise ValueError("Number of guests exceeds room capacity.")
 
         conn = self.db.connect()
         cur = conn.cursor()
@@ -259,10 +265,10 @@ class HotelManager:
 
             cur.execute(
                 """
-                INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, total_price, status)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (guest_id, room_id, ci_iso, co_iso, total_price, status),
+                (guest_id, room_id, ci_iso, co_iso, num_guests, total_price, status),
             )
 
             reservation_id = cur.lastrowid
