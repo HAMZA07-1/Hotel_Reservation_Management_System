@@ -54,6 +54,7 @@ Algorithms:
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from unittest.mock import patch, MagicMock
 from hotel_manager import HotelManager
 
@@ -286,6 +287,85 @@ class TestReserveRoom(unittest.TestCase):
         mock_cursor.execute.assert_any_call("BEGIN IMMEDIATE")
         mock_cursor.execute.assert_any_call("COMMIT")
         self.assertNotIn(unittest.mock.call("ROLLBACK"), mock_cursor.execute.call_args_list)
+
+class TestCancelReservation(unittest.TestCase):
+    """Unit tests for the cancel_reservation method using Mocks."""
+
+    def setUp(self):
+        """Sets up the test environment with a Mock Database."""
+        self.mock_db = MagicMock()
+        self.mgr = HotelManager(db=self.mock_db)
+
+    def test_cancel_fails_if_not_found(self):
+        """Fails if the reservation ID does not exist."""
+        self.mock_db.execute_query.return_value = None
+
+        with self.assertRaises(ValueError) as context:
+            self.mgr.cancel_reservation(999)
+
+        self.assertEqual(str(context.exception), "Reservation not found.")
+
+    def test_cancel_fails_if_already_cancelled(self):
+        """Fails if the status is already 'Cancelled'."""
+        self.mock_db.execute_query.return_value = {
+            "status": "Cancelled",
+            "check_in_date": "2025-01-01",
+            "total_price": 100.0
+        }
+
+        with self.assertRaises(ValueError) as context:
+            self.mgr.cancel_reservation(1)
+
+        self.assertEqual(str(context.exception), "Reservation is already cancelled.")
+
+    @patch('hotel_manager.datetime')
+    def test_cancel_late_fee_applied(self, mock_datetime):
+        """Late cancellation (< 24h) applies 20% fee."""
+        self.mock_db.execute_query.return_value = {
+            "status": "Confirmed",
+            "check_in_date": "2025-01-02",
+            "total_price": 100.0
+        }
+
+        mock_datetime.now.return_value = datetime(2025, 1, 1, 16, 0)
+        mock_datetime.strptime = datetime.strptime
+        mock_datetime.combine = datetime.combine
+
+        # Connection mocks for the update
+        mock_conn = self.mock_db.connect.return_value
+        mock_cursor = mock_conn.cursor.return_value
+
+        receipt = self.mgr.cancel_reservation(1)
+
+        self.assertEqual(receipt["cancellation_fee"], 20.0)
+        self.assertEqual(receipt["refund_amount"], 80.0)
+        self.assertEqual(receipt["status"], "Cancelled")
+
+        mock_cursor.execute.assert_called_with(
+            "UPDATE reservations SET status = 'Cancelled', total_price = ? WHERE reservation_id = ?",
+            (20.0, 1)
+        )
+
+    def test_cancel_early_is_free(self):
+        """Early cancellation (> 24h) is free."""
+        # Use a date far enough in the future that it's always > 24h from now
+        from datetime import datetime, timedelta
+        future_date = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+
+        self.mock_db.execute_query.return_value = {
+            "status": "Confirmed",
+            "check_in_date": future_date,
+            "total_price": 100.0
+        }
+
+        mock_conn = self.mock_db.connect.return_value
+        mock_cursor = mock_conn.cursor.return_value
+
+        receipt = self.mgr.cancel_reservation(1)
+
+        self.assertEqual(receipt["cancellation_fee"], 0.0)
+        self.assertEqual(receipt["refund_amount"], 100.0)
+
 
 if __name__ == "__main__":
     unittest.main()

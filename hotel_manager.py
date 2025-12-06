@@ -293,5 +293,62 @@ class HotelManager:
         finally:
             conn.close()
 
+    def cancel_reservation(self, reservation_id: int) -> dict:
+        """
+        Cancels a reservation. Applies 20% fee if late.
+        Returns a receipt dictionary with fee and refund details.
+        """
+        from datetime import datetime, time
 
+        # 1. Fetch Reservation
+        res = self.db.execute_query(
+            "SELECT status, check_in_date, total_price FROM reservations WHERE reservation_id = ?",
+            (reservation_id,),
+            fetch_all=False
+        )
 
+        if not res:
+            raise ValueError("Reservation not found.")
+        if res["status"] == "Cancelled":
+            raise ValueError("Reservation is already cancelled.")
+
+        # 2. Calculate Fee Logic
+        check_in_date = datetime.strptime(res["check_in_date"], "%Y-%m-%d").date()
+        deadline = datetime.combine(check_in_date, time(15, 0))  # 3:00 PM
+
+        now = datetime.now()
+        hours_until_checkin = (deadline - now).total_seconds() / 3600
+
+        original_price = float(res["total_price"])
+
+        if hours_until_checkin < 24:
+            final_fee = original_price * 0.20  # Late Fee
+        else:
+            final_fee = 0.0  # Free
+
+        refund_amount = original_price - final_fee
+
+        # 3. Update Database (Status AND Price)
+        # We overwrite total_price so reports show the revenue we actually kept (the fee).
+        conn = self.db.connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE reservations SET status = 'Cancelled', total_price = ? WHERE reservation_id = ?",
+                (final_fee, reservation_id)
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+        # 4. Return Receipt
+        return {
+            "reservation_id": reservation_id,
+            "status": "Cancelled",
+            "original_price": original_price,
+            "cancellation_fee": final_fee,
+            "refund_amount": refund_amount
+        }
