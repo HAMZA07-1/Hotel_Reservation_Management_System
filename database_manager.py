@@ -261,6 +261,52 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def get_rooms_filtered(self, room_number="", available=None,
+                           smoking=None, capacity=None):
+        conn = self.connect()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT room_id, room_number, room_type,
+                   smoking, capacity, price, is_available
+            FROM rooms
+            WHERE 1=1
+        """
+        params = []
+
+        if room_number:
+            query += " AND room_number LIKE ?"
+            params.append(f"%{room_number}%")
+
+        if available is not None:
+            query += " AND is_available = ?"
+            params.append(1 if available else 0)
+
+        if smoking is not None:
+            query += " AND smoking = ?"
+            params.append(1 if smoking else 0)
+
+        if capacity is not None:
+            query += " AND capacity = ?"
+            params.append(int(capacity))
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+
+        return rows
+
+    def update_room(self, room_id, new_price, new_is_available):
+        conn = self.connect()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "UPDATE rooms SET price = ?, is_available = ? WHERE room_id = ?",
+            (new_price, new_is_available, room_id),
+        )
+        conn.commit()
+        conn.close()
+
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------

@@ -610,8 +610,8 @@ class ReservationFormFrame(tk.Frame):
             # Cash: proceed immediately
             # --- Step 1: Insert guest into database ---
             guest_id = self.controller.db.add_guest(
-                first, last, email, phone,
-                addr1, addr2, city, state, postal
+                first, last, email, addr1,
+                city, state, postal, phone, addr2,
             )
 
             self.is_paid_var.set(0)
@@ -631,6 +631,7 @@ class ReservationFormFrame(tk.Frame):
                 "Reservation Created",
                 f"Reservation #{reservation_id} created successfully!"
             )
+            self.controller.show_frame("main_menu")
 
     #-------------------------
     # Phone number Formatting
@@ -807,8 +808,8 @@ class ReservationFormFrame(tk.Frame):
 
         # create guest
         guest_id = self.controller.db.add_guest(
-            first, last, email, phone,
-            addr1, addr2, city, state, postal
+            first, last, email, addr1, city,
+            state, postal, phone, addr2
         )
 
         reservation_id = self.controller.hotel.reserve_room(
@@ -822,3 +823,4 @@ class ReservationFormFrame(tk.Frame):
         )
 
         messagebox.showinfo("Reservation Created", f"Reservation #{reservation_id} created successfully!")
+        self.controller.show_frame("main_menu")
