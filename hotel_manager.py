@@ -47,10 +47,17 @@ class HotelManager:
 
     def _parse_dates(self, check_in: str, check_out: str) -> tuple[str, str, int]:
         """Private helper function, validates date text and calculates number of nights."""
-        ci = datetime.strptime(check_in, "%Y-%m-%d").date()
-        co = datetime.strptime(check_out, "%Y-%m-%d").date()
-        if ci >= co:
-            raise ValueError("check_out must be after check_in")
+        try:
+            ci = datetime.strptime(check_in, "%Y-%m-%d").date()
+            co = datetime.strptime(check_out, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("Invalid date format. Use YYYY-MM-DD.")
+
+        if co < ci:
+            raise ValueError("check_out must be after check_in.")
+        if co == ci:
+            raise ValueError("check_out cannot be the same day as check_in.")
+
         nights = (co - ci).days
         return ci.isoformat(), co.isoformat(), nights
 
@@ -230,12 +237,12 @@ class HotelManager:
         if not self.db.room_exists(room_id = room_id):
             raise ValueError("Room does not exist.")
 
-        total_price = self.calculate_total_price(room_id, check_in, check_out)
-
         if num_guests is not None:
             room = self.db.get_room(room_id=room_id)
             if num_guests > room["capacity"]:
                 raise ValueError("Number of guests exceeds room capacity.")
+
+        total_price = self.calculate_total_price(room_id, check_in, check_out)
 
         conn = self.db.connect()
         cur = conn.cursor()
