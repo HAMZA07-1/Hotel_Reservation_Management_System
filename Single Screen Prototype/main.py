@@ -27,10 +27,26 @@ class HotelApp(tk.Tk):
         super().__init__()
         self.db = DatabaseManager()
         self.hotel = HotelManager(self.db)
-        #Window properties
+
+        # Window properties
         self.title("Hotel Management")
-        self.geometry("1920x1080")
+
+        # Set desired size
+        app_w, app_h = 1920, 1080
+        self.geometry(f"{app_w}x{app_h}")
         self.configure(bg=BG_COLOR)
+        self.resizable(False, False)
+
+        # --- Center the main window ---
+        self.update_idletasks()  # ensure geometry info is ready
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        x = (screen_w // 2) - (app_w // 2)
+        y = (screen_h // 2) - (app_h // 2)
+
+        self.geometry(f"{app_w}x{app_h}+{x}+{y}")
+
 
         #Current User logged in info
         self.current_user_id = None
@@ -65,7 +81,7 @@ class HotelApp(tk.Tk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         #First Frame shown on program start
-        self.show_frame("login_screen")
+        self.show_frame("main_menu")
 
     #def to show new screen
     def show_frame(self, name):

@@ -5,17 +5,31 @@ class RoomSearchPopup(tk.Toplevel):
     def __init__(self, parent, controller, check_in, check_out, num_guests, include_smoking):
         super().__init__(parent)
         self.parent_frame = parent
-        # Tell controller what frame popup should return data to
         controller.current_frame = parent
 
         self.title("Available Rooms")
         self.controller = controller
 
-        self.geometry("600x600")
+        # Set size
+        popup_w, popup_h = 600, 600
+        self.geometry(f"{popup_w}x{popup_h}")
         self.configure(bg="#2C3E50")
+        self.resizable(False, False)
+
+        # ---- Center the popup on screen ----
+        self.update_idletasks()  # ensure geometry is ready
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        x = (screen_w // 2) - (popup_w // 2)
+        y = (screen_h // 2) - (popup_h // 2)
+
+        self.geometry(f"{popup_w}x{popup_h}+{x}+{y}")
+        # ------------------------------------
 
         tk.Label(self, text="Available Rooms", bg="#2C3E50", fg="white",
                  font=("Arial", 18, "bold")).pack(pady=10)
+
 
         # Treeview
         columns = ("room_number", "capacity", "price")

@@ -94,10 +94,15 @@ class ReservationFormFrame(tk.Frame):
             .grid(row=2, column=1, pady=6)
 
         # Phone
-        tk.Label(guest_frame, text="Phone Number:", bg=PANEL_BG, fg=FG_COLOR)\
+        tk.Label(guest_frame, text="Phone Number:", bg=PANEL_BG, fg=FG_COLOR) \
             .grid(row=3, column=0, sticky="e", pady=6)
-        tk.Entry(guest_frame, textvariable=self.phone_var, width=22)\
-            .grid(row=3, column=1, pady=6)
+
+        # create the entry and bind KeyRelease
+        self.phone_entry = tk.Entry(guest_frame, textvariable=self.phone_var, width=22)
+        self.phone_entry.grid(row=3, column=1, pady=6, sticky="w")
+
+        # call formatter on KeyRelease (works well with cursor adjustments)
+        self.phone_entry.bind("<KeyRelease>", lambda e: self.format_phone_number())
 
         # ===== Address Breakdown =====
         tk.Label(guest_frame, text="Address Line 1:", bg=PANEL_BG, fg=FG_COLOR)\
@@ -115,10 +120,30 @@ class ReservationFormFrame(tk.Frame):
         tk.Entry(guest_frame, textvariable=self.city_var, width=22)\
             .grid(row=6, column=1, pady=6)
 
-        tk.Label(guest_frame, text="State:", bg=PANEL_BG, fg=FG_COLOR)\
-            .grid(row=7, column=0, sticky="e", pady=6)
-        tk.Entry(guest_frame, textvariable=self.state_var, width=10)\
-            .grid(row=7, column=1, pady=6, sticky="w")
+        tk.Label(
+            guest_frame, text="State:", bg=PANEL_BG, fg=FG_COLOR
+        ).grid(row=7, column=0, sticky="e", pady=6)
+
+        # List of all 50 U.S. states
+        STATE_LIST = [
+            "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+            "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+            "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+            "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+            "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+        ]
+
+        self.state_combo = ttk.Combobox(
+            guest_frame,
+            textvariable=self.state_var,
+            values=STATE_LIST,
+            width=5,
+            state="readonly"
+        )
+        self.state_combo.grid(row=7, column=1, pady=6, sticky="w")
+
+        #Pre-select California by default
+        self.state_combo.set("CA")
 
         tk.Label(guest_frame, text="Postal Code:", bg=PANEL_BG, fg=FG_COLOR)\
             .grid(row=8, column=0, sticky="e", pady=6)
@@ -356,7 +381,7 @@ class ReservationFormFrame(tk.Frame):
         self.card_number_entry.bind("<KeyRelease>", lambda e: self.format_card_number())
 
         # Expiration (MM/YY)
-        tk.Label(self.card_frame, text="Expiration (MM/YY):", bg=PANEL_BG, fg=FG_COLOR) \
+        tk.Label(self.card_frame, text="Expiration (MMYY):", bg=PANEL_BG, fg=FG_COLOR) \
             .grid(row=2, column=0, sticky="w")
         self.card_exp_var = tk.StringVar()
         self.card_exp_entry = tk.Entry(self.card_frame, textvariable=self.card_exp_var, width=8)
@@ -370,8 +395,7 @@ class ReservationFormFrame(tk.Frame):
         self.card_cvv_entry = tk.Entry(self.card_frame, textvariable=self.card_cvv_var, width=6, show="*")
         self.card_cvv_entry.grid(row=3, column=1, sticky="w", pady=2)
         # optional: restrict CVV characters to digits only on key release
-        self.card_cvv_entry.bind("<KeyRelease>",
-                                 lambda e: self.card_cvv_var.set(''.join(filter(str.isdigit, self.card_cvv_var.get()))))
+        self.card_cvv_entry.bind("<KeyRelease>", lambda e: self.format_cvv())
 
         # Hide or show based on initial method selection
         self.toggle_payment_fields()
@@ -425,7 +449,7 @@ class ReservationFormFrame(tk.Frame):
     #---------------------------------------------------------------------
     def set_selected_room(self, room_id, room_number):
         self.selected_room_id = room_id
-        self.selected_room_var.set(f"Room {room_number} (Id: {room_id})")
+        self.selected_room_var.set(f"Room {room_number}")
 
     # --------------------------------------------------------------------
     def open_room_search_popup(self):
@@ -608,6 +632,33 @@ class ReservationFormFrame(tk.Frame):
                 f"Reservation #{reservation_id} created successfully!"
             )
 
+    #-------------------------
+    # Phone number Formatting
+    #-------------------------
+    def format_phone_number(self):
+        """Auto-format phone number as (123)-456-7890 and limit to 10 digits.
+           Keep the cursor at the end after formatting."""
+        raw = "".join(ch for ch in self.phone_var.get() if ch.isdigit())
+        raw = raw[:10]  # enforce limit
+
+        # Build formatted string
+        formatted = ""
+        if len(raw) >= 1:
+            formatted = "(" + raw[:3]
+        if len(raw) >= 3:
+            # if only 1-2 digits inside parentheses, still close when we have 3
+            formatted = "(" + raw[:3] + ")"
+        if len(raw) >= 4:
+            formatted += "-" + raw[3:6]
+        if len(raw) >= 7:
+            formatted += "-" + raw[6:10]
+
+        # Avoid infinite recursion and only update if different
+        if formatted != self.phone_var.get():
+            self.phone_var.set(formatted)
+            # move cursor to end after current event loop so Tk's own handling won't override it
+            self.after_idle(lambda: self.phone_entry.icursor(tk.END))
+
     # ------------------------
     # Credit Card helpers & validation
     # ------------------------
@@ -617,8 +668,8 @@ class ReservationFormFrame(tk.Frame):
     def format_card_number(self):
         """Format card number into groups of 4 digits while preserving cursor reasonably."""
         s = self.clean_digits(self.card_number_var.get())
-        # limit to 19 digits (some cards like Amex 15, add spacing — we'll allow up to 19)
-        s = s[:19]
+        # limit to 16 digits
+        s = s[:16]
         grouped = " ".join(s[i:i+4] for i in range(0, len(s), 4))
         # avoid infinite loop of writes
         if grouped != self.card_number_var.get():
@@ -648,6 +699,14 @@ class ReservationFormFrame(tk.Frame):
                 self.card_exp_entry.icursor(tk.END) #keeps cursor at end of textbox
             except:
                 pass
+
+    def format_cvv(self):
+        """Ensure CVV contains only digits and is max 4 characters."""
+        raw = "".join(filter(str.isdigit, self.card_cvv_var.get()))
+        raw = raw[:4]  # max length
+        if raw != self.card_cvv_var.get():
+            self.card_cvv_var.set(raw)
+            self.card_cvv_entry.icursor(tk.END)
 
     def luhn_check(self, card_number: str) -> bool:
         """Return True if card_number (digits only) passes Luhn checksum."""
@@ -685,11 +744,26 @@ class ReservationFormFrame(tk.Frame):
         proc.transient(self)
         proc.grab_set()  # modal
 
-        proc.geometry("320x140")
+        # Set fixed size
+        popup_w, popup_h = 320, 140
+        proc.geometry(f"{popup_w}x{popup_h}")
         proc.configure(bg=BG_COLOR)
+        proc.resizable(False, False)
 
-        ttk.Label(proc, text="Processing payment...", background=BG_COLOR, foreground=FG_COLOR, font=("Arial", 12, "bold"))\
-            .pack(pady=(12, 6))
+
+        # --- Center the window on screen ---
+        proc.update_idletasks()  # ensure geometry is calculated
+        screen_w = proc.winfo_screenwidth()
+        screen_h = proc.winfo_screenheight()
+
+        x = (screen_w // 2) - (popup_w // 2)
+        y = (screen_h // 2) - (popup_h // 2)
+
+        proc.geometry(f"{popup_w}x{popup_h}+{x}+{y}")
+        # ----------------------------------
+
+        ttk.Label(proc, text="Processing payment...", background=BG_COLOR,
+                  foreground=FG_COLOR, font=("Arial", 12, "bold")).pack(pady=(12, 6))
 
         from tkinter.ttk import Progressbar
         pb = Progressbar(proc, mode="indeterminate", length=260)
@@ -699,25 +773,23 @@ class ReservationFormFrame(tk.Frame):
         status_label = ttk.Label(proc, text="Authorizing...", background=BG_COLOR, foreground=FG_COLOR)
         status_label.pack()
 
-        # Simulate processing delay and result
         def finish(success: bool):
             pb.stop()
             status_label.config(text="Approved" if success else "Declined")
-            # show auth code or declined message
+
+            # Show result text
             if success:
                 auth = f"AUTH-{int(100000 + (hash(card_last4) % 899999))}"
-                ttk.Label(proc, text=f"Auth Code: {auth}", background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
+                ttk.Label(proc, text=f"Auth Code: {auth}",
+                          background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
             else:
-                ttk.Label(proc, text="Payment declined. Try a different card or cash.", background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
+                ttk.Label(proc, text="Payment declined. Try a different card or cash.",
+                          background=BG_COLOR, foreground=FG_COLOR).pack(pady=(6, 0))
 
-            # close after short delay and call callback
+            # Close after 3 seconds
             proc.after(3000, lambda: (proc.grab_release(), proc.destroy(), callback(success)))
 
-        # We'll simulate a 3s processing + then return result. The calling code should decide pass/fail.
-        # for realism, leave the decision to caller via callback parameter, but we can compute here and pass it:
-        # We'll wait 1200ms then call finish(...) with value set by callback_decision function below.
         return proc, finish
-
 
     def toggle_payment_fields(self):
         #Show or hide credit card fields depending on the payment method.
