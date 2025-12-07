@@ -296,75 +296,133 @@ class TestCancelReservation(unittest.TestCase):
         self.mock_db = MagicMock()
         self.mgr = HotelManager(db=self.mock_db)
 
+        # Set up connection and cursor mocks
+        self.mock_conn = MagicMock()
+        self.mock_cursor = MagicMock()
+        self.mock_db.connect.return_value = self.mock_conn
+        self.mock_conn.cursor.return_value = self.mock_cursor
+
+        # Mock get_room_price to always return a float (prevents MagicMock arithmetic issues)
+        self.mock_db.get_room_price.return_value = 100.0
+
     def test_cancel_fails_if_not_found(self):
         """Fails if the reservation ID does not exist."""
-        self.mock_db.execute_query.return_value = None
+        # Mock fetchone to return None (reservation not found)
+        self.mock_cursor.fetchone.return_value = None
 
         with self.assertRaises(ValueError) as context:
             self.mgr.cancel_reservation(999)
 
         self.assertEqual(str(context.exception), "Reservation not found.")
+        self.mock_cursor.execute.assert_any_call("ROLLBACK")
 
     def test_cancel_fails_if_already_cancelled(self):
         """Fails if the status is already 'Cancelled'."""
-        self.mock_db.execute_query.return_value = {
-            "status": "Cancelled",
-            "check_in_date": "2025-01-01",
-            "total_price": 100.0
-        }
+        # Mock fetchone to return a tuple: (status, check_in_date, total_price, room_id)
+        self.mock_cursor.fetchone.return_value = ("Cancelled", "2025-01-01", 100.0, 101)
 
         with self.assertRaises(ValueError) as context:
             self.mgr.cancel_reservation(1)
 
-        self.assertEqual(str(context.exception), "Reservation is already cancelled.")
+        self.assertEqual(str(context.exception), "Reservation cannot be cancelled (already cancelled or complete).")
+        self.mock_cursor.execute.assert_any_call("ROLLBACK")
+
+    def test_cancel_fails_if_complete(self):
+        """Fails if the status is 'Complete'."""
+        self.mock_cursor.fetchone.return_value = ("Complete", "2025-01-01", 100.0, 101)
+
+        with self.assertRaises(ValueError) as context:
+            self.mgr.cancel_reservation(1)
+
+        self.assertEqual(str(context.exception), "Reservation cannot be cancelled (already cancelled or complete).")
+        self.mock_cursor.execute.assert_any_call("ROLLBACK")
+
+    def test_cancel_fails_if_checked_in(self):
+        """Fails if the guest is already checked in."""
+        self.mock_cursor.fetchone.return_value = ("Checked-in", "2025-01-01", 100.0, 101)
+
+        with self.assertRaises(ValueError) as context:
+            self.mgr.cancel_reservation(1)
+
+        self.assertEqual(str(context.exception), "Cannot cancel reservation after check-in.")
+        self.mock_cursor.execute.assert_any_call("ROLLBACK")
 
     @patch('hotel_manager.datetime')
-    def test_cancel_late_fee_applied(self, mock_datetime):
+    def test_cancel_late_fee_applied(self, mock_datetime_class):
         """Late cancellation (< 24h) applies 20% fee."""
-        self.mock_db.execute_query.return_value = {
-            "status": "Confirmed",
-            "check_in_date": "2025-01-02",
-            "total_price": 100.0
-        }
+        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-02", 100.0, 101)
 
-        mock_datetime.now.return_value = datetime(2025, 1, 1, 16, 0)
-        mock_datetime.strptime = datetime.strptime
-        mock_datetime.combine = datetime.combine
+        # Mock datetime.now() to return our specific time (23 hours before check-in)
+        mock_datetime_class.now.return_value = datetime(2025, 1, 1, 16, 0)
 
-        # Connection mocks for the update
-        mock_conn = self.mock_db.connect.return_value
-        mock_cursor = mock_conn.cursor.return_value
+        # Mock datetime.strptime to use the real implementation
+        mock_datetime_class.strptime = datetime.strptime
+
+        # Mock datetime.combine to use the real implementation
+        mock_datetime_class.combine = datetime.combine
 
         receipt = self.mgr.cancel_reservation(1)
 
         self.assertEqual(receipt["cancellation_fee"], 20.0)
         self.assertEqual(receipt["refund_amount"], 80.0)
         self.assertEqual(receipt["status"], "Cancelled")
+        self.assertEqual(receipt["original_price"], 100.0)
+        self.assertEqual(receipt["reason"], "Late cancellation (within 24 hours)")
 
-        mock_cursor.execute.assert_called_with(
-            "UPDATE reservations SET status = 'Cancelled', total_price = ? WHERE reservation_id = ?",
-            (20.0, 1)
-        )
+        # Verify transaction was committed
+        self.mock_cursor.execute.assert_any_call("COMMIT")
 
-    def test_cancel_early_is_free(self):
+    @patch('hotel_manager.datetime')
+    def test_cancel_early_is_free(self, mock_datetime_class):
         """Early cancellation (> 24h) is free."""
-        # Use a date far enough in the future that it's always > 24h from now
-        from datetime import datetime, timedelta
-        future_date = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
+        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-05", 100.0, 101)
 
-        self.mock_db.execute_query.return_value = {
-            "status": "Confirmed",
-            "check_in_date": future_date,
-            "total_price": 100.0
-        }
+        # Mock datetime.now() to return time 4 days before check-in
+        mock_datetime_class.now.return_value = datetime(2025, 1, 1, 12, 0)
 
-        mock_conn = self.mock_db.connect.return_value
-        mock_cursor = mock_conn.cursor.return_value
+        # Use real datetime functions for parsing
+        mock_datetime_class.strptime = datetime.strptime
+        mock_datetime_class.combine = datetime.combine
 
         receipt = self.mgr.cancel_reservation(1)
 
         self.assertEqual(receipt["cancellation_fee"], 0.0)
         self.assertEqual(receipt["refund_amount"], 100.0)
+        self.assertEqual(receipt["status"], "Cancelled")
+        self.assertEqual(receipt["original_price"], 100.0)
+        self.assertEqual(receipt["reason"], "Early cancellation")
+
+        # Verify transaction was committed
+        self.mock_cursor.execute.assert_any_call("COMMIT")
+
+    @patch('hotel_manager.datetime')
+    def test_cancel_no_show_fee_applied(self, mock_datetime):
+        """No-show cancellation (past check-in, still Confirmed) charges 1 night + fee."""
+        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-01", 200.0, 101)
+
+        # Mock datetime to be 25 hours after check-in time (no-show scenario)
+        mock_datetime.now.return_value = datetime(2025, 1, 2, 16, 0)
+        mock_datetime.strptime = datetime.strptime
+        mock_datetime.combine = datetime.combine
+
+        # Mock get_room_price to return nightly rate
+        self.mock_db.get_room_price.return_value = 100.0
+
+        receipt = self.mgr.cancel_reservation(1)
+
+        # Nightly rate (100) + no-show fee (50) = 150
+        self.assertEqual(receipt["cancellation_fee"], 150.0)
+        self.assertEqual(receipt["refund_amount"], 50.0)  # 200 - 150
+        self.assertEqual(receipt["reason"], "No-show cancellation")
+
+        # Verify get_room_price was called
+        self.mock_db.get_room_price.assert_called_once_with(101)
+
+        # Verify transaction was committed
+        self.mock_cursor.execute.assert_any_call("COMMIT")
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ Algorithms:
   locks the database for writing, then re-checks for availability, and only then inserts the new reservation. If
   the room was taken in the meantime, the transaction is rolled back. This ensures data consistency.
 """
-from datetime import datetime
+from datetime import datetime, time
 import sqlite3
 from typing import Optional, List
 from database_manager import DatabaseManager
@@ -218,14 +218,14 @@ class HotelManager:
 
 
     def reserve_room(
-            self,
-            guest_id: int,
-            room_id: int,
-            check_in: str,
-            check_out: str,
-            num_guests: int = None,
-            status: str = "Confirmed",
-            is_paid: int = None) -> int: #returns new reservation id
+        self,
+        guest_id: int,
+        room_id: int,
+        check_in: str,
+        check_out: str,
+        num_guests: int = None,
+        status: str = "Confirmed",
+        is_paid: int = None) -> int: #returns new reservation id
 
         """Creates a new reservation in the database with transactional safety."""
         # Date parsing and initial validation
@@ -298,57 +298,103 @@ class HotelManager:
         Cancels a reservation. Applies 20% fee if late.
         Returns a receipt dictionary with fee and refund details.
         """
-        from datetime import datetime, time
-
-        # 1. Fetch Reservation
-        res = self.db.execute_query(
-            "SELECT status, check_in_date, total_price FROM reservations WHERE reservation_id = ?",
-            (reservation_id,),
-            fetch_all=False
-        )
-
-        if not res:
-            raise ValueError("Reservation not found.")
-        if res["status"] == "Cancelled":
-            raise ValueError("Reservation is already cancelled.")
-
-        # 2. Calculate Fee Logic
-        check_in_date = datetime.strptime(res["check_in_date"], "%Y-%m-%d").date()
-        deadline = datetime.combine(check_in_date, time(15, 0))  # 3:00 PM
-
-        now = datetime.now()
-        hours_until_checkin = (deadline - now).total_seconds() / 3600
-
-        original_price = float(res["total_price"])
-
-        if hours_until_checkin < 24:
-            final_fee = original_price * 0.20  # Late Fee
-        else:
-            final_fee = 0.0  # Free
-
-        refund_amount = original_price - final_fee
-
-        # 3. Update Database (Status AND Price)
-        # We overwrite total_price so reports show the revenue we actually kept (the fee).
         conn = self.db.connect()
         cur = conn.cursor()
+
         try:
+            conn.isolation_level = None
+            cur.execute("BEGIN IMMEDIATE")
+
             cur.execute(
-                "UPDATE reservations SET status = 'Cancelled', total_price = ? WHERE reservation_id = ?",
+                "SELECT status, check_in_date, total_price, room_id FROM reservations WHERE reservation_id = ?",
+                (reservation_id,)
+            )
+            row = cur.fetchone()
+
+            if not row:
+                cur.execute("ROLLBACK")
+                raise ValueError("Reservation not found.")
+
+            status, check_in_date_str, original_price, room_id = row[0], row[1], float(row[2]), row[3]
+
+            if status in ("Cancelled", "Complete"):
+                cur.execute("ROLLBACK")
+                raise ValueError("Reservation cannot be cancelled (already cancelled or complete).")
+
+            # Calculate Fee Logic
+            check_in_date = datetime.strptime(check_in_date_str, "%Y-%m-%d").date()
+            deadline = datetime.combine(check_in_date, time(15, 0)) # 3:00 PM
+
+            now = datetime.now()
+            hours_until_checkin = (deadline - now).total_seconds() / 3600
+
+            if hours_until_checkin >= 24:
+                final_fee = 0.0
+                cancellation_reason = "Early cancellation"
+            elif hours_until_checkin > 0:
+                final_fee = original_price * 0.20
+                cancellation_reason = "Late cancellation (within 24 hours)"
+            elif status == "Confirmed":  # No-show scenario, used by employee/manager
+                nightly_rate = self.db.get_room_price(room_id)
+                no_show_fee = 50.00
+                final_fee = nightly_rate + no_show_fee
+                cancellation_reason = "No-show cancellation"
+            elif status == "Checked-in":
+                cur.execute("ROLLBACK")
+                raise ValueError("Cannot cancel reservation after check-in.")
+            else:
+                cur.execute("ROLLBACK")
+                raise ValueError(
+                    f"Invalid cancellation state: status={status}, "
+                    f"hours_until_checkin={hours_until_checkin:.1f}. "
+                    "Contact system administrator."
+                )
+
+            refund_amount = original_price - final_fee
+
+            # Update reservation status and price
+            cur.execute(
+                """
+                UPDATE reservations
+                SET status = 'Cancelled', total_price = ?
+                WHERE reservation_id = ?
+                """,
                 (final_fee, reservation_id)
             )
-            conn.commit()
+
+            cur.execute("COMMIT")
+
+            return {
+                "reservation_id": reservation_id,
+                "status": "Cancelled",
+                "original_price": original_price,
+                "cancellation_fee": final_fee,
+                "refund_amount": refund_amount,
+                "reason": cancellation_reason,
+                "cancelled_at": now.isoformat()
+            }
+
         except Exception:
-            conn.rollback()
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
             raise
+
         finally:
             conn.close()
 
-        # 4. Return Receipt
-        return {
-            "reservation_id": reservation_id,
-            "status": "Cancelled",
-            "original_price": original_price,
-            "cancellation_fee": final_fee,
-            "refund_amount": refund_amount
-        }
+
+
+    def update_reservation(
+        self,
+        reservation_id: int,
+        room_id: int = None,
+        check_in: str = None,
+        check_out: str = None,
+        num_guests: int = None,
+        status: str = None
+    ) -> bool:
+
+        pass
+
