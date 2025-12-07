@@ -27,6 +27,8 @@ class HotelApp(tk.Tk):
         super().__init__()
         self.db = DatabaseManager()
         self.hotel = HotelManager(self.db)
+        #Allows DatabaseManager to call HotelManager methods
+        self.db.hotel_manager = self.hotel
 
         # Window properties
         self.title("Hotel Management")
@@ -215,6 +217,12 @@ class MainMenuFrame(tk.Frame):
         self.controller.show_frame("login_screen")
 
     def refresh(self):
+        #updates room availability based on reservation date
+        self.db.update_room_availability_today()
+
+        #Updates reservations based on date and times
+        self.db.run_daily_reservation_updates()
+
         #Called when this menu is shown; hide buttons based on role.
         name = self.controller.current_user_name or "Guest"
         self.title_label.config(

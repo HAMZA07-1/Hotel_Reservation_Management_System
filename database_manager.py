@@ -46,6 +46,7 @@ Notes:
 """
 import sqlite3
 from pathlib import Path
+from datetime import date, timedelta
 
 
 class DatabaseManager:
@@ -56,7 +57,7 @@ class DatabaseManager:
     def __init__(self, db_name="hotel.db"):
         self.db_name = db_name
         self.create_if_missing()
-
+        self.hotel_manager = None
     # ---------------------------------------------------
     # Database Setup
     # ---------------------------------------------------
@@ -307,6 +308,33 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
+    def update_room_availability_today(self):
+        today = date.today().isoformat()
+
+        conn = self.connect()
+        cur = conn.cursor()
+
+        # Reset all rooms to available
+        cur.execute("UPDATE rooms SET is_available = 1")
+
+        # Find reservations active today
+        cur.execute("""
+            SELECT room_id FROM reservations
+            WHERE status != 'Cancelled'
+              AND check_in_date <= ?
+              AND check_out_date > ?
+        """, (today, today))
+
+        rooms_to_block = cur.fetchall()  # [(1,), (4,), (12,), ...]
+
+        # Mark those rooms unavailable
+        cur.executemany(
+            "UPDATE rooms SET is_available = 0 WHERE room_id = ?",
+            rooms_to_block
+        )
+
+        conn.commit()
+
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------
@@ -440,3 +468,50 @@ class DatabaseManager:
         conn.close()
 
         return rows
+
+    #Calls daily startup methods below
+    def run_daily_reservation_updates(self):
+        self.mark_late_reservations()
+        self.cancel_expired_late_reservations()
+
+    def mark_late_reservations(self):
+        """Mark reservations as 'Late' if yesterday was their check-in date and they never checked in."""
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+        conn = self.db.connect()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE reservations
+            SET status = 'Late'
+            WHERE check_in_date = ?
+              AND status != 'Checked-in'
+              AND status != 'Cancelled'
+        """, (yesterday,))
+
+        conn.commit()
+
+    def cancel_expired_late_reservations(self):
+        """Cancel reservations marked Late whose check-in date was 2+ days ago."""
+        two_days_ago = (date.today() - timedelta(days=2)).isoformat()
+
+        conn = self.connect()
+        cur = conn.cursor()
+
+        # Find all Late reservations that should be canceled
+        cur.execute("""
+            SELECT reservation_id
+            FROM reservations
+            WHERE status = 'Late'
+              AND check_in_date <= ?
+        """, (two_days_ago,))
+
+        expired_reservations = cur.fetchall()
+
+        # Call the existing cancel_reservation in HotelManager
+        for (reservation_id,) in expired_reservations:
+            if self.hotel_manager:
+                self.hotel_manager.cancel_reservation(reservation_id)
+            else:
+                print("[Warning] HotelManager not linked to DatabaseManager.")
+

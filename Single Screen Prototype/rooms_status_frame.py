@@ -392,3 +392,5 @@ class RoomStatusFrame(tk.Frame):
     def refresh(self):
         """Called whenever this screen is shown"""
         self.load_data()
+        #Update room availability every refresh as well
+        self.controller.db.update_room_availability_today()

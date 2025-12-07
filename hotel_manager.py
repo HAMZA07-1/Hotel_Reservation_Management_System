@@ -33,7 +33,7 @@ Algorithms:
   locks the database for writing, then re-checks for availability, and only then inserts the new reservation. If
   the room was taken in the meantime, the transaction is rolled back. This ensures data consistency.
 """
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import sqlite3
 from typing import Optional, List
 from database_manager import DatabaseManager
