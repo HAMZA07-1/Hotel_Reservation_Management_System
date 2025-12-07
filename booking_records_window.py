@@ -204,6 +204,101 @@ def open_booking_records_window(parent=None):
         else:
             container.destroy()
 
+    # ----------------------------------------
+    # EDIT RESERVATION DIALOG
+    # ----------------------------------------
+    def open_edit_dialog(event=None):
+        """Open edit dialog for selected reservation (double-click or button)."""
+        selection = tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a reservation to edit.")
+            return
+
+        selected_item = selection[0]
+        values = tree.item(selected_item, 'values')
+        
+        # values = (reservation_id, guest_id, guest_name, room_id, room_number, check_in, check_out, total_price, status)
+        res_id = values[0]
+        guest_name = values[2]
+        room_num = values[4]
+        check_in = values[5]
+        check_out = values[6]
+        current_status = values[8]
+
+        # Create edit window
+        edit_win = tk.Toplevel(container)
+        edit_win.title(f"Edit Reservation #{res_id}")
+        edit_win.geometry("400x350")
+        edit_win.resizable(False, False)
+
+        # Info labels
+        tk.Label(edit_win, text=f"Reservation #{res_id}", font=("Arial", 12, "bold")).pack(pady=10)
+        tk.Label(edit_win, text=f"Guest: {guest_name}").pack()
+        tk.Label(edit_win, text=f"Room: {room_num}").pack()
+        tk.Label(edit_win, text=f"Check-in: {check_in}").pack()
+        tk.Label(edit_win, text=f"Check-out: {check_out}").pack(pady=(0, 20))
+
+        # Status dropdown
+        tk.Label(edit_win, text="Update Status:", font=("Arial", 10, "bold")).pack(anchor="w", padx=20)
+        status_options = ["Confirmed", "Checked-in", "Checked-out", "Cancelled", "Paid", "Unpaid", "Late", "No-show"]
+        status_var_edit = tk.StringVar(value=current_status)
+        status_combo = ttk.Combobox(edit_win, textvariable=status_var_edit, values=status_options, state="readonly", width=30)
+        status_combo.pack(pady=10, padx=20)
+
+        # Buttons frame
+        btn_frame = tk.Frame(edit_win)
+        btn_frame.pack(pady=20)
+
+        def save_changes():
+            """Save the status update to the database."""
+            new_status = status_var_edit.get()
+            if new_status == current_status:
+                messagebox.showinfo("No Change", "Status unchanged.")
+                edit_win.destroy()
+                return
+
+            try:
+                conn = db.connect()
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE reservations SET status = ? WHERE reservation_id = ?",
+                    (new_status, res_id)
+                )
+                conn.commit()
+                conn.close()
+                messagebox.showinfo("Success", f"Reservation #{res_id} status updated to '{new_status}'.")
+                load_data()  # Refresh table
+                edit_win.destroy()
+            except sqlite3.Error as e:
+                messagebox.showerror("Database Error", f"Failed to update reservation: {e}")
+
+        def delete_reservation_confirm():
+            """Delete the reservation after confirmation."""
+            if messagebox.askyesno("Confirm Delete", f"Delete reservation #{res_id}? This cannot be undone."):
+                try:
+                    conn = db.connect()
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM reservations WHERE reservation_id = ?", (res_id,))
+                    conn.commit()
+                    conn.close()
+                    messagebox.showinfo("Success", f"Reservation #{res_id} deleted.")
+                    load_data()  # Refresh table
+                    edit_win.destroy()
+                except sqlite3.Error as e:
+                    messagebox.showerror("Database Error", f"Failed to delete reservation: {e}")
+
+        save_btn = tk.Button(btn_frame, text="Save Status", command=save_changes, bg="#4CAF50", fg="white", width=15)
+        save_btn.pack(side="left", padx=5)
+
+        delete_btn = tk.Button(btn_frame, text="Delete", command=delete_reservation_confirm, bg="#f44336", fg="white", width=10)
+        delete_btn.pack(side="left", padx=5)
+
+        close_btn = tk.Button(btn_frame, text="Close", command=edit_win.destroy, width=10)
+        close_btn.pack(side="left", padx=5)
+
+    # Bind double-click to open edit dialog
+    tree.bind("<Double-1>", open_edit_dialog)
+
     if parent is not None:
         back_btn = tk.Button(container, text="Back", command=go_back)
         back_btn.pack(pady=(6, 12))
