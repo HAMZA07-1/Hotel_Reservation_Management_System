@@ -35,6 +35,27 @@ This document describes the database schema used by the Hotel Reservation Manage
 Relationship Summary:
 - reservations reference guests and rooms; a guest can have multiple resrvations and one room can have multiple reservations throughout time.
 
+## Integrity Enforcement
+- The following is to ensure data consistency and prevent invalid booking states
+
+### Primary constraints
+- `rooms.rooms_id`, `guests.guest_id`, and `reservations.reservation_id` are unique therefore no duplicate records can exist.
+
+### Foreign Constraints
+- `reservations.guest_id` -> `guests.guest_id`: Reservation must reference an existing guest.
+- `reservations.guest_id` -> `rooms.rooms_id` : Every reservation must reference an existing room
+
+### Unique Constraints
+- `rooms.room_number` : Should be unique to each reservation. No overlapping reservations of the same room
+- `guests.email` : Recommended to prevent duplicate guest accounts.
+
+### Check Constraints (domain validation)
+- `reservations.check_in_date < reservations.check_out_date`: check-in must be before check-out to prevent same day or inverted ranges.
+- `reservations.total_price >= 0`: prices should not be negative.
+- `rooms.price >= 0`: room base prices should be non-negative.
+- `rooms.capacity > 0`: room capacity must be positive (at least 1 guest).
+- `rooms.is_available IN (0, 1)`: simple boolean flag (0 = unavailable, 1 = available).
+
 ## Integrity Enforcment
 *insert Integrity Enforcement detailing here*
 
