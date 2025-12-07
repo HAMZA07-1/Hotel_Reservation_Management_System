@@ -70,4 +70,22 @@ Relationship Summary:
     - `No-show` (no show 0-0)
 
 ## Future extension considerations
-*insert that here*
+
+### 1. Tax and Fee Handling
+- **New table:** `taxes` (id, name, rate, description).
+- **New table:** `fees` (id, name, amount, applied_to_reservation).
+- **New column in `reservations`:** `tax_amount`, `fees_amount`, `subtotal` to break down pricing.
+- **Purpose:** Support multiple tax jurisdictions and per-reservation surcharges (cleaning fee, resort fee, pet fee, etc.).
+- **Implementation:** calculate and store tax/fee amounts at booking time; separate line-item reporting in invoices.
+
+### 2. Guest Preferences and Loyalty
+- **New table:** `guest_preferences` (id, guest_id, preferred_room_type, notes, dietary_restrictions).
+- **New table:** `loyalty_programs` (id, guest_id, tier, points_balance, member_since).
+- **Purpose:** personalize service and track repeat customer engagement.
+- **Implementation:** auto-recommend preferred room types; discount bookings based on loyalty tier.
+
+### 3. Housekeeping and Maintenance Workflow
+- **New table:** `housekeeping_tasks` (id, room_id, task_type, status, assigned_to, due_date).
+- **New table:** `maintenance_requests` (id, room_id, issue_description, priority, assigned_to, resolved_date).
+- **Purpose:** track cleaning schedules and maintenance tasks.
+- **Implementation:** mark rooms unavailable during housekeeping; alert staff of maintenance needs.
