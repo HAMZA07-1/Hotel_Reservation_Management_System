@@ -170,10 +170,13 @@ class DatabaseManager:
         conn = self.connect()
         cur = conn.cursor()
         try:
+            # Convert email to lowercase before insertion
+            email_lower = email.strip().lower()
+
             cur.execute("""
                 INSERT INTO guests (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (first_name, last_name, email, phone_number, address_line1, address_line2, city, state, postal_code))
+            """, (first_name, last_name, email_lower, phone_number, address_line1, address_line2, city, state, postal_code))
             conn.commit()
             return cur.lastrowid
         finally:
