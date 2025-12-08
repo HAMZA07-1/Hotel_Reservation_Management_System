@@ -295,7 +295,14 @@ class HotelManager:
 
     def cancel_reservation(self, reservation_id: int) -> dict:
         """
-        Cancels a reservation. Applies 20% fee if late.
+        Cancels a reservation applying strict time-based fee logic centered on 2:00 PM check-in.
+
+        Fee Structure:
+         > 24h before check-in: 0% Fee
+         0-24h before check-in: 20% Fee
+         0-24h after check-in:  50% Fee
+         > 24h after check-in:  100% Fee
+
         Returns a receipt dictionary with fee and refund details.
         """
         conn = self.db.connect()
@@ -321,33 +328,42 @@ class HotelManager:
                 cur.execute("ROLLBACK")
                 raise ValueError("Reservation cannot be cancelled (already cancelled or complete).")
 
+            if status == "Checked-in":
+                cur.execute("ROLLBACK")
+                raise ValueError("Cannot cancel reservation after check-in, perform early check-out instead.")
+
             # Calculate Fee Logic
             check_in_date = datetime.strptime(check_in_date_str, "%Y-%m-%d").date()
-            deadline = datetime.combine(check_in_date, time(15, 0)) # 3:00 PM
-
+            check_in_deadline = datetime.combine(check_in_date, time(14,0))
             now = datetime.now()
-            hours_until_checkin = (deadline - now).total_seconds() / 3600
 
-            if hours_until_checkin >= 24:
+            # Calculate difference: Positive = Before Check-in, Negative = After Check-in
+            delta = check_in_deadline - now
+
+            one_day = timedelta(hours=24)
+
+            final_fee = 0.0
+            cancellation_reason = ""
+
+            # Case 1: More than 24 hours before check-in
+            if delta > one_day:
                 final_fee = 0.0
-                cancellation_reason = "Early cancellation"
-            elif hours_until_checkin > 0:
+                cancellation_reason = "Early cancellation (> 24h before check-in)"
+
+            # Case 2: 0-24 hours before check-in
+            elif timedelta(0) < delta <= one_day:
                 final_fee = original_price * 0.20
-                cancellation_reason = "Late cancellation (within 24 hours)"
-            elif status == "Confirmed":  # No-show scenario, used by employee/manager
-                nightly_rate = self.db.get_room_price(room_id)
-                final_fee = nightly_rate
-                cancellation_reason = "No-show cancellation"
-            elif status == "Checked-in":
-                cur.execute("ROLLBACK")
-                raise ValueError("Cannot cancel reservation after check-in.")
-            else:
-                cur.execute("ROLLBACK")
-                raise ValueError(
-                    f"Invalid cancellation state: status={status}, "
-                    f"hours_until_checkin={hours_until_checkin:.1f}. "
-                    "Contact system administrator."
-                )
+                cancellation_reason = "Late cancellation (0-24h before check-in)"
+
+            # Case 3: 0-24 hours after check-in
+            elif -one_day < delta <= timedelta(0):
+                final_fee = original_price * 0.50
+                cancellation_reason = "No-show / Very late cancellation (< 24h after check-in)"
+
+            # Case 4: More than 24 hours after check-in
+            else: # delta <= -one_day
+                final_fee = original_price
+                cancellation_reason = "Expired / Abandoned (> 24h after check-in)"
 
             refund_amount = original_price - final_fee
 
