@@ -280,7 +280,7 @@ class RoomStatusFrame(tk.Frame):
     # Edit popup + handlers
     # -------------------------
     def _on_tree_double_click(self, event):
-        # Make sure we clicked on a cell and identify the clicked column by name (robust)
+        # Identify which part of the tree was clicked
         region = self.tree.identify("region", event.x, event.y)
         if region != "cell":
             return
@@ -295,10 +295,24 @@ class RoomStatusFrame(tk.Frame):
             return
 
         col_name = self.columns[col_index]
+
+        # Only the "edit" column allows editing
         if col_name != "edit":
-            # only open editor when user double-clicks the leftmost "edit" column
             return
 
+        # -------------------------------
+        # ROLE CHECK — Managers only
+        # -------------------------------
+        role = getattr(self.controller, "current_user_role", None)
+        if role != "Manager":
+            messagebox.showwarning(
+                "Access Denied",
+                "Manager Level Access Required to edit room details."
+            )
+            return
+        # -------------------------------
+
+        # Identify row clicked
         row_id = self.tree.identify_row(event.y)
         if not row_id:
             return
@@ -308,9 +322,12 @@ class RoomStatusFrame(tk.Frame):
         if not values or len(values) < 8:
             return
 
+        # Extract data
         room_id = values[1]
         current_price = values[6]
         current_avail_str = values[7]
+
+        # Open editor
         self.open_edit_popup(room_id, current_price, current_avail_str)
 
     def open_edit_popup(self, room_id: int, current_price, current_avail_str: str):

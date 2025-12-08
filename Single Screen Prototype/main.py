@@ -222,6 +222,7 @@ class MainMenuFrame(tk.Frame):
 
         #Updates reservations based on date and times
         self.db.run_daily_reservation_updates()
+        self.db.run_daily_reservation_updates()
 
         #Called when this menu is shown; hide buttons based on role.
         name = self.controller.current_user_name or "Guest"

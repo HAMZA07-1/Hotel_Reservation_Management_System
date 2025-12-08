@@ -46,7 +46,7 @@ Notes:
 """
 import sqlite3
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 
 class DatabaseManager:
@@ -475,13 +475,14 @@ class DatabaseManager:
     #Calls daily startup methods below
     def run_daily_reservation_updates(self):
         self.mark_late_reservations()
+        self.mark_late_checkouts()
         self.cancel_expired_late_reservations()
 
     def mark_late_reservations(self):
         """Mark reservations as 'Late' if yesterday was their check-in date and they never checked in."""
         yesterday = (date.today() - timedelta(days=1)).isoformat()
 
-        conn = self.db.connect()
+        conn = self.connect()
         cur = conn.cursor()
 
         cur.execute("""
@@ -490,31 +491,81 @@ class DatabaseManager:
             WHERE check_in_date = ?
               AND status != 'Checked-in'
               AND status != 'Cancelled'
+              AND status != 'Checked-out'
         """, (yesterday,))
 
         conn.commit()
 
+    def mark_late_checkouts(self):
+        """
+        Marks all reservations whose checkout date is today and
+        are not checked out by 12:00 PM as 'Late Check-out'.
+        """
+
+        now = datetime.now()
+        today = date.today()
+
+        # Only run the check if it's at or past noon
+        if now.time() < time(12, 0):
+            return  # before noon → do nothing
+
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            # Select reservations with:
+            # - checkout today
+            # - status NOT 'Checked-out'
+            # - status NOT already 'Late Check-out'
+            cursor.execute("""
+                SELECT reservation_id
+                FROM reservations
+                WHERE check_out_date = ?
+                  AND status NOT IN ('Checked-out', 'Late Check-out', 'Late')
+            """, (today.isoformat(),))
+
+            late_res_list = cursor.fetchall()
+
+            for (res_id,) in late_res_list:
+                cursor.execute("""
+                    UPDATE reservations
+                    SET status = 'Late Check-out'
+                    WHERE reservation_id = ?
+                """, (res_id,))
+
+            conn.commit()
+
+    from datetime import datetime, date, time, timedelta
+
     def cancel_expired_late_reservations(self):
-        """Cancel reservations marked Late whose check-in date was 2+ days ago."""
-        two_days_ago = (date.today() - timedelta(days=2)).isoformat()
+        """
+        Cancel reservations with status 'Late' if it has been 24 hours
+        past their check-in time (check-in time is 2:00 PM).
+        """
+        now = datetime.now()
 
         conn = self.connect()
         cur = conn.cursor()
 
-        # Find all Late reservations that should be canceled
+        # Get all reservations marked as Late
         cur.execute("""
-            SELECT reservation_id
+            SELECT reservation_id, check_in_date
             FROM reservations
             WHERE status = 'Late'
-              AND check_in_date <= ?
-        """, (two_days_ago,))
+        """)
 
-        expired_reservations = cur.fetchall()
+        late_reservations = cur.fetchall()
 
-        # Call the existing cancel_reservation in HotelManager
-        for (reservation_id,) in expired_reservations:
-            if self.hotel_manager:
-                self.hotel_manager.cancel_reservation(reservation_id)
-            else:
-                print("[Warning] HotelManager not linked to DatabaseManager.")
+        for reservation_id, check_in_str in late_reservations:
+            check_in_date = datetime.fromisoformat(check_in_str).date()
 
+            # Build the actual check-in datetime: check-in date at 2:00 PM
+            check_in_datetime = datetime.combine(check_in_date, time(14, 0))
+
+            # If more than 24 hours have passed since check-in time → cancel
+            if now >= check_in_datetime + timedelta(hours=24):
+                if self.hotel_manager:
+                    self.hotel_manager.cancel_reservation(reservation_id)
+                else:
+                    print("[Warning] HotelManager not linked to DatabaseManager.")
+
+        conn.close()

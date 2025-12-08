@@ -5,72 +5,104 @@ from database_manager import DatabaseManager
 
 BG_APP = "#2C3E50"
 PANEL_BG = "#34495E"
+ACCENT = "#1ABC9C"
 
 db = DatabaseManager()
 
-#----------------------------------------
-# LOGIN SCREEN
-#----------------------------------------
+
 class LoginFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
         super().__init__(parent, bg=BG_APP)
         self.controller = controller
 
-        #Entry variables are attributes
+        # Variables
         self.username_var = tk.StringVar()
         self.password_var = tk.StringVar()
         self.role_var = tk.StringVar(value="Manager")
 
-        #Title
+        # Make frame stretch
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # --------- OUTER CONTAINER (CENTERED) ---------
+        container = tk.Frame(self, bg=BG_APP)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        # --------- MODERN LOGIN CARD ---------
+        card = tk.Frame(
+            container,
+            bg=PANEL_BG,
+            padx=40,
+            pady=40,
+            highlightthickness=2,
+            highlightbackground="#1f2e3b",
+        )
+        card.grid(row=0, column=0)
+
+        # Title
         title = tk.Label(
-            self,
+            card,
             text="Hotel Employee Login",
-            bg=BG_APP,
+            bg=PANEL_BG,
             fg="white",
-            font=("Arial", 22, "bold")
+            font=("Segoe UI", 26, "bold")
         )
-        title.pack(pady=30)
+        title.grid(row=0, column=0, columnspan=2, pady=(0, 30))
 
-        # ----- Central panel -----
-        frame = tk.Frame(self, bg=PANEL_BG, padx=25, pady=25)
-        frame.pack()
-
-        # Username / Password labels
-        tk.Label(frame, text="Employee ID:", bg=PANEL_BG, fg="white").grid(
-            row=0, column=0, pady=8, padx=5, sticky="e"
+        # Labels
+        lbl_user = tk.Label(
+            card, text="Employee ID:", bg=PANEL_BG, fg="white",
+            font=("Segoe UI", 12)
         )
-        tk.Label(frame, text="Password:", bg=PANEL_BG, fg="white").grid(
-            row=1, column=0, pady=8, padx=5, sticky="e"
+        lbl_pass = tk.Label(
+            card, text="Password:", bg=PANEL_BG, fg="white",
+            font=("Segoe UI", 12)
         )
 
-        # Username / Password entries
-        entry_username = tk.Entry(frame, width=20, textvariable=self.username_var)
-        entry_username.grid(row=0, column=1, pady=8)
+        lbl_user.grid(row=1, column=0, sticky="e", padx=10, pady=10)
+        lbl_pass.grid(row=2, column=0, sticky="e", padx=10, pady=10)
 
-        entry_password = tk.Entry(frame, width=20, show="*", textvariable=self.password_var)
-        entry_password.grid(row=1, column=1, pady=8)
+        # Entry styling
+        entry_style = {"width": 25, "font": ("Segoe UI", 11), "bd": 2, "relief": "groove"}
 
-        # Login button
+        entry_username = tk.Entry(card, textvariable=self.username_var, **entry_style)
+        entry_password = tk.Entry(card, show="*", textvariable=self.password_var, **entry_style)
+
+        entry_username.grid(row=1, column=1, pady=10, padx=5)
+        entry_password.grid(row=2, column=1, pady=10, padx=5)
+
+        # Modern Login Button
         login_btn = tk.Button(
-            frame,
+            card,
             text="Login",
-            width=12,
-            command=self.check_credentials
+            command=self.check_credentials,
+            font=("Segoe UI", 12, "bold"),
+            bg=ACCENT,
+            fg="white",
+            activebackground="#16a085",
+            activeforeground="white",
+            relief="flat",
+            padx=15,
+            pady=5,
+            width=18,
         )
-        login_btn.grid(row=3, column=0, columnspan=2, pady=15)
+        login_btn.grid(row=3, column=0, columnspan=2, pady=(30, 10))
 
-        # Bind Enter key (to the whole frame / app)
+        # Rounded button feel
+        login_btn.configure(borderwidth=0, highlightthickness=0)
+
+        # Bind enter key
         entry_password.bind("<Return>", self.check_credentials)
 
-        # Focus username on show
+        # Focus
         self._username_entry = entry_username
 
-    #-----------------------------------------
-    # LOGIN LOGIC
-    #-----------------------------------------
+    # ------------------------------------------------
+    # LOGIN LOGIC (unchanged)
+    # ------------------------------------------------
     def check_credentials(self, event=None):
-        #Validate ID/Password against database
-        #Move to database manager in future push
         employee_id = self.username_var.get().strip()
         password = self.password_var.get().strip()
 
@@ -83,36 +115,21 @@ class LoginFrame(tk.Frame):
             conn = db.connect()
             cur = conn.cursor()
 
-            #Assume employee_id is stored exactly as user enters
-            cur.execute(
-                """
-                SELECT employee_id, employee_password, first_name, last_name, role FROM employees
-                WHERE employee_id = ?
-                """, (employee_id,)
-            )
+            cur.execute("""
+                SELECT employee_id, employee_password, first_name, last_name, role
+                FROM employees WHERE employee_id = ?
+            """, (employee_id,))
             row = cur.fetchone()
 
-            if row is None:
+            if row is None or password != row[1]:
                 messagebox.showerror("Login Failed", "Invalid Employee ID or Password.")
                 return
 
-            db_employee_id, db_password, first_name, last_name, role = row
-
-            if password != db_password:
-                messagebox.showerror("Login Failed", "Invalid Employee ID or Password.")
-                return
-
-            db_employee_id = row[0]
-            first_name = row[2]
-            last_name = row[3]
-            role = row[4]
-
-            self.controller.current_user_id = db_employee_id
-            self.controller.current_user_role = role
-            self.controller.current_user_name = f"{first_name} {last_name}".strip()
+            self.controller.current_user_id = row[0]
+            self.controller.current_user_role = row[4]
+            self.controller.current_user_name = f"{row[2]} {row[3]}".strip()
 
             self.controller.show_frame("main_menu")
-
             self.username_var.set("")
             self.password_var.set("")
 
@@ -123,7 +140,5 @@ class LoginFrame(tk.Frame):
                 conn.close()
 
     def refresh(self):
-        #Called when this frame is shown
-        #clear fields or set focus here
         self.password_var.set("")
         self._username_entry.focus_set()
