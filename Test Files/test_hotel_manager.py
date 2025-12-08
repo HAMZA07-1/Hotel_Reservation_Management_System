@@ -1,6 +1,6 @@
 """
 Module: test_hotel_manager.py
-Date: 12/04/2025
+Date: 12/07/2025
 Programmer(s): Keano
 
 Brief Description:
@@ -54,7 +54,7 @@ Algorithms:
 import os
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, time
 from unittest.mock import patch, MagicMock
 from hotel_manager import HotelManager
 
@@ -289,7 +289,15 @@ class TestReserveRoom(unittest.TestCase):
         self.assertNotIn(unittest.mock.call("ROLLBACK"), mock_cursor.execute.call_args_list)
 
 class TestCancelReservation(unittest.TestCase):
-    """Unit tests for the cancel_reservation method using Mocks."""
+    """
+    Unit tests for the cancel_reservation method using Mocks.
+
+    Fee Structure (centered on 2:00 PM check-in):
+     > 24h before check-in: 0% Fee
+     0-24h before check-in: 20% Fee
+     0-24h after check-in:  50% Fee
+     > 24h after check-in:  100% Fee
+    """
 
     def setUp(self):
         """Sets up the test environment with a Mock Database."""
@@ -302,12 +310,10 @@ class TestCancelReservation(unittest.TestCase):
         self.mock_db.connect.return_value = self.mock_conn
         self.mock_conn.cursor.return_value = self.mock_cursor
 
-        # Mock get_room_price to always return a float (prevents MagicMock arithmetic issues)
-        self.mock_db.get_room_price.return_value = 100.0
+    # ==================== Validation Tests ====================
 
     def test_cancel_fails_if_not_found(self):
         """Fails if the reservation ID does not exist."""
-        # Mock fetchone to return None (reservation not found)
         self.mock_cursor.fetchone.return_value = None
 
         with self.assertRaises(ValueError) as context:
@@ -318,7 +324,6 @@ class TestCancelReservation(unittest.TestCase):
 
     def test_cancel_fails_if_already_cancelled(self):
         """Fails if the status is already 'Cancelled'."""
-        # Mock fetchone to return a tuple: (status, check_in_date, total_price, room_id)
         self.mock_cursor.fetchone.return_value = ("Cancelled", "2025-01-01", 100.0, 101)
 
         with self.assertRaises(ValueError) as context:
@@ -344,45 +349,19 @@ class TestCancelReservation(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             self.mgr.cancel_reservation(1)
 
-        self.assertEqual(str(context.exception), "Cannot cancel reservation after check-in.")
+        self.assertEqual(str(context.exception), "Cannot cancel reservation after check-in, perform early check-out instead.")
         self.mock_cursor.execute.assert_any_call("ROLLBACK")
 
-    @patch('hotel_manager.datetime')
-    def test_cancel_late_fee_applied(self, mock_datetime_class):
-        """Late cancellation (< 24h) applies 20% fee."""
-        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
-        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-02", 100.0, 101)
-
-        # Mock datetime.now() to return our specific time (23 hours before check-in)
-        mock_datetime_class.now.return_value = datetime(2025, 1, 1, 16, 0)
-
-        # Mock datetime.strptime to use the real implementation
-        mock_datetime_class.strptime = datetime.strptime
-
-        # Mock datetime.combine to use the real implementation
-        mock_datetime_class.combine = datetime.combine
-
-        receipt = self.mgr.cancel_reservation(1)
-
-        self.assertEqual(receipt["cancellation_fee"], 20.0)
-        self.assertEqual(receipt["refund_amount"], 80.0)
-        self.assertEqual(receipt["status"], "Cancelled")
-        self.assertEqual(receipt["original_price"], 100.0)
-        self.assertEqual(receipt["reason"], "Late cancellation (within 24 hours)")
-
-        # Verify transaction was committed
-        self.mock_cursor.execute.assert_any_call("COMMIT")
+    # ==================== Fee Calculation Tests ====================
 
     @patch('hotel_manager.datetime')
-    def test_cancel_early_is_free(self, mock_datetime_class):
-        """Early cancellation (> 24h) is free."""
-        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
+    def test_cancel_early_free(self, mock_datetime_class):
+        """Case 1: > 24h before check-in = 0% fee (free cancellation)."""
+        # Check-in: Jan 5, 2025 at 2:00 PM
+        # Now: Jan 1, 2025 at 12:00 PM (more than 24h before)
         self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-05", 100.0, 101)
 
-        # Mock datetime.now() to return time 4 days before check-in
         mock_datetime_class.now.return_value = datetime(2025, 1, 1, 12, 0)
-
-        # Use real datetime functions for parsing
         mock_datetime_class.strptime = datetime.strptime
         mock_datetime_class.combine = datetime.combine
 
@@ -392,36 +371,67 @@ class TestCancelReservation(unittest.TestCase):
         self.assertEqual(receipt["refund_amount"], 100.0)
         self.assertEqual(receipt["status"], "Cancelled")
         self.assertEqual(receipt["original_price"], 100.0)
-        self.assertEqual(receipt["reason"], "Early cancellation")
-
-        # Verify transaction was committed
+        self.assertEqual(receipt["reason"], "Early cancellation (> 24h before check-in)")
         self.mock_cursor.execute.assert_any_call("COMMIT")
 
     @patch('hotel_manager.datetime')
-    def test_cancel_no_show_fee_applied(self, mock_datetime):
-        """No-show cancellation (past check-in, still Confirmed) charges 1 night + fee."""
-        # Mock fetchone to return: (status, check_in_date, total_price, room_id)
-        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-01", 200.0, 101)
+    def test_cancel_late_before_checkin_20_percent(self, mock_datetime_class):
+        """Case 2: 0-24h before check-in = 20% fee."""
+        # Check-in: Jan 2, 2025 at 2:00 PM
+        # Now: Jan 1, 2025 at 4:00 PM (22 hours before check-in)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-02", 100.0, 101)
 
-        # Mock datetime to be 25 hours after check-in time (no-show scenario)
-        mock_datetime.now.return_value = datetime(2025, 1, 2, 16, 0)
-        mock_datetime.strptime = datetime.strptime
-        mock_datetime.combine = datetime.combine
-
-        # Mock get_room_price to return nightly rate
-        self.mock_db.get_room_price.return_value = 100.0
+        mock_datetime_class.now.return_value = datetime(2025, 1, 1, 16, 0)
+        mock_datetime_class.strptime = datetime.strptime
+        mock_datetime_class.combine = datetime.combine
 
         receipt = self.mgr.cancel_reservation(1)
 
-        # Nightly rate (100) + no-show fee (50) = 150
-        self.assertEqual(receipt["cancellation_fee"], 150.0)
-        self.assertEqual(receipt["refund_amount"], 50.0)  # 200 - 150
-        self.assertEqual(receipt["reason"], "No-show cancellation")
+        self.assertEqual(receipt["cancellation_fee"], 20.0)
+        self.assertEqual(receipt["refund_amount"], 80.0)
+        self.assertEqual(receipt["status"], "Cancelled")
+        self.assertEqual(receipt["original_price"], 100.0)
+        self.assertEqual(receipt["reason"], "Late cancellation (0-24h before check-in)")
+        self.mock_cursor.execute.assert_any_call("COMMIT")
 
-        # Verify get_room_price was called
-        self.mock_db.get_room_price.assert_called_once_with(101)
+    @patch('hotel_manager.datetime')
+    def test_cancel_after_checkin_within_24h_50_percent(self, mock_datetime_class):
+        """Case 3: 0-24h after check-in = 50% fee."""
+        # Check-in: Jan 1, 2025 at 2:00 PM
+        # Now: Jan 1, 2025 at 8:00 PM (6 hours after check-in)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-01", 100.0, 101)
 
-        # Verify transaction was committed
+        mock_datetime_class.now.return_value = datetime(2025, 1, 1, 20, 0)
+        mock_datetime_class.strptime = datetime.strptime
+        mock_datetime_class.combine = datetime.combine
+
+        receipt = self.mgr.cancel_reservation(1)
+
+        self.assertEqual(receipt["cancellation_fee"], 50.0)
+        self.assertEqual(receipt["refund_amount"], 50.0)
+        self.assertEqual(receipt["status"], "Cancelled")
+        self.assertEqual(receipt["original_price"], 100.0)
+        self.assertEqual(receipt["reason"], "No-show / Very late cancellation (< 24h after check-in)")
+        self.mock_cursor.execute.assert_any_call("COMMIT")
+
+    @patch('hotel_manager.datetime')
+    def test_cancel_expired_after_24h_100_percent(self, mock_datetime_class):
+        """Case 4: > 24h after check-in = 100% fee (no refund)."""
+        # Check-in: Jan 1, 2025 at 2:00 PM
+        # Now: Jan 2, 2025 at 4:00 PM (26 hours after check-in)
+        self.mock_cursor.fetchone.return_value = ("Confirmed", "2025-01-01", 100.0, 101)
+
+        mock_datetime_class.now.return_value = datetime(2025, 1, 2, 16, 0)
+        mock_datetime_class.strptime = datetime.strptime
+        mock_datetime_class.combine = datetime.combine
+
+        receipt = self.mgr.cancel_reservation(1)
+
+        self.assertEqual(receipt["cancellation_fee"], 100.0)
+        self.assertEqual(receipt["refund_amount"], 0.0)
+        self.assertEqual(receipt["status"], "Cancelled")
+        self.assertEqual(receipt["original_price"], 100.0)
+        self.assertEqual(receipt["reason"], "Expired / Abandoned (> 24h after check-in)")
         self.mock_cursor.execute.assert_any_call("COMMIT")
 
 
