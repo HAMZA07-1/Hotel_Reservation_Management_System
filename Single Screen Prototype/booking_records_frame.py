@@ -2,12 +2,14 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from database_manager import DatabaseManager
 import sqlite3
+import calendar
+from datetime import date
 
 db = DatabaseManager()
 
 class BookingRecordsFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
-        super().__init__(parent, bg="#395A7F")
+        super().__init__(parent, bg="#2C3E50")
         self.controller = controller
 
         # ttk style for table
@@ -15,43 +17,75 @@ class BookingRecordsFrame(tk.Frame):
         style.configure("Treeview", font=("TkDefaultFont", 13), rowheight=30)
         style.configure("Treeview.Heading", font=("TkDefaultFont", 12, "bold"))
 
+        # Title
+        title_label = tk.Label(
+            self,
+            text="Booking Records",
+            bg="#2C3E50",
+            fg="white",
+            font=("Arial", 30, "bold")
+        )
+        title_label.pack(pady=(10, 5))
+
+        # -----------------------
+        # Filter variables (instance attributes)
+        # -----------------------
+        self.guest_var = tk.StringVar()
+        self.room_var = tk.StringVar()
+        self.status_var = tk.StringVar()
+
+        self.ci_year_var = tk.StringVar()
+        self.ci_month_var = tk.StringVar()
+        self.ci_day_var = tk.StringVar()
+
+        self.co_year_var = tk.StringVar()
+        self.co_month_var = tk.StringVar()
+        self.co_day_var = tk.StringVar()
+
+        self.show_active_var = tk.BooleanVar(value=True)
+
         # --------------------
         # FILTER BAR
         # --------------------
-        filter_frame = tk.Frame(self, bg="#395A7F")
+        filter_frame = tk.Frame(self, bg="#2C3E50")
         filter_frame.pack(fill="x", pady=8)
 
+        # Back button (now resets filters before switching)
+        back_btn = tk.Button(
+            filter_frame,
+            text="Back",
+            command=lambda: (self.reset_filters(), controller.show_frame("main_menu")),
+        )
+        back_btn.pack(side="left", padx=12)
+
         # Guest name search
-        tk.Label(filter_frame, text="Guest:", bg="#395A7F", fg="white").pack(
+        tk.Label(filter_frame, text="Guest:", bg="#2C3E50", fg="white").pack(
             side="left", padx=(12, 4)
         )
-        guest_var = tk.StringVar()
-        guest_entry = tk.Entry(filter_frame, textvariable=guest_var, width=20)
+        guest_entry = tk.Entry(filter_frame, textvariable=self.guest_var, width=20)
         guest_entry.pack(side="left", padx=4)
 
         # Room number search
-        tk.Label(filter_frame, text="Room#:", bg="#395A7F", fg="white").pack(
+        tk.Label(filter_frame, text="Room#:", bg="#2C3E50", fg="white").pack(
             side="left", padx=(12, 4)
         )
-        room_var = tk.StringVar()
-        room_entry = tk.Entry(filter_frame, textvariable=room_var, width=8)
+        room_entry = tk.Entry(filter_frame, textvariable=self.room_var, width=8)
         room_entry.pack(side="left", padx=4)
 
         # Status dropdown
-        tk.Label(filter_frame, text="Status:", bg="#395A7F", fg="white").pack(
+        tk.Label(filter_frame, text="Status:", bg="#2C3E50", fg="white").pack(
             side="left", padx=(12, 4)
         )
-        status_var = tk.StringVar()
         status_dropdown = ttk.Combobox(
             filter_frame,
-            textvariable=status_var,
+            textvariable=self.status_var,
             values=[
                 "",
                 "Confirmed",
-                "Cancelled",
                 "Checked-in",
-                "Checked-out",
-                "No-show",
+                "Late",
+                "Complete",
+                "Late Check-out",
             ],
             width=12,
             state="readonly",
@@ -59,17 +93,102 @@ class BookingRecordsFrame(tk.Frame):
         status_dropdown.current(0)
         status_dropdown.pack(side="left", padx=4)
 
+        # -------------------------
+        # CHECK-IN DATE FILTER
+        # -------------------------
+        tk.Label(filter_frame, text="Check-in After:", bg="#2C3E50", fg="white").pack(
+            side="left", padx=(12, 4)
+        )
+
+        start_year = 2020
+        current_year = date.today().year
+        ci_years = list(range(start_year, current_year + 1))
+
+        self.ci_year_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.ci_year_var,
+            values=ci_years,
+            width=6,
+            state="readonly",
+        )
+        self.ci_year_cb.pack(side="left", padx=2)
+
+        self.ci_month_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.ci_month_var,
+            values=list(range(1, 13)),
+            width=4,
+            state="readonly",
+        )
+        self.ci_month_cb.pack(side="left", padx=2)
+
+        self.ci_day_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.ci_day_var,
+            width=4,
+            state="readonly",
+        )
+        self.ci_day_cb.pack(side="left", padx=2)
+
+        # -------------------------
+        # CHECK-OUT DATE FILTER
+        # -------------------------
+        tk.Label(filter_frame, text="Check-out Before:", bg="#2C3E50", fg="white").pack(
+            side="left", padx=(12, 4)
+        )
+
+        co_years = list(range(start_year, current_year + 3))
+
+        self.co_year_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.co_year_var,
+            values=co_years,
+            width=6,
+            state="readonly"
+        )
+        self.co_year_cb.pack(side="left", padx=2)
+
+        self.co_month_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.co_month_var,
+            values=list(range(1, 13)),
+            width=4,
+            state="readonly"
+        )
+        self.co_month_cb.pack(side="left", padx=2)
+
+        self.co_day_cb = ttk.Combobox(
+            filter_frame,
+            textvariable=self.co_day_var,
+            width=4,
+            state="readonly"
+        )
+        self.co_day_cb.pack(side="left", padx=2)
+
+        # Active Reservations Checkbox
+        active_chk = tk.Checkbutton(
+            filter_frame,
+            text="Show Active Reservations",
+            variable=self.show_active_var,
+            onvalue=True,
+            offvalue=False,
+            bg="#2C3E50",
+            fg="white",
+            selectcolor="#395A7F",
+        )
+        active_chk.pack(side="left", padx=(12, 4))
+
+        # Clear Filters Button
+        clear_btn = tk.Button(
+            filter_frame,
+            text="Clear Filters",
+            command=lambda: (self.reset_filters(), self._load_data()),
+        )
+        clear_btn.pack(side="left", padx=8)
+
         # Filter button
         filter_btn = tk.Button(filter_frame, text="Filter", command=lambda: load_data())
-        filter_btn.pack(side="right", padx=12)
-
-        # Back button
-        back_btn = tk.Button(
-            filter_frame,
-            text="Back",
-            command=lambda: controller.show_frame("main_menu"),
-        )
-        back_btn.pack(side="right", padx=12)
+        filter_btn.pack(side="left", padx=12)
 
         # ------------------------
         # TABLE SET UP
@@ -86,8 +205,8 @@ class BookingRecordsFrame(tk.Frame):
             "status",
         )
 
-        tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
-        tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.tree = ttk.Treeview(self, columns=columns, show="headings", height=12)
+        self.tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
         headings = [
             "Res ID",
@@ -101,74 +220,73 @@ class BookingRecordsFrame(tk.Frame):
             "Status",
         ]
         for col, head in zip(columns, headings):
-            tree.heading(col, text=head)
-            tree.column(col, width=100)
+            self.tree.heading(col, text=head)
+            self.tree.column(col, width=100)
 
         # ------------------------
         # PAGINATION
         # ------------------------
-        page_frame = tk.Frame(self, bg="#395A7F")
+        page_frame = tk.Frame(self, bg="#2C3E50")
         page_frame.pack(fill="x", pady=6)
 
-        current_page = tk.IntVar(value=1)
-        rows_per_page = 12
-        result_rows = []
+        self.current_page = tk.IntVar(value=1)
+        self.rows_per_page = 29
+        self.result_rows = []
 
         prev_btn = tk.Button(page_frame, text="<", command=lambda: change_page(-1))
         prev_btn.pack(side="left", padx=6)
-        tk.Label(page_frame, text="Page", bg="#395A7F", fg="white").pack(side="left")
+        tk.Label(page_frame, text="Page", bg="#2C3E50", fg="white").pack(side="left")
 
-        page_entry = tk.Entry(page_frame, width=4, justify="center")
-        page_entry.insert(0, "1")
-        page_entry.pack(side="left", padx=6)
+        self.page_entry = tk.Entry(page_frame, width=4, justify="center")
+        self.page_entry.insert(0, "1")
+        self.page_entry.pack(side="left", padx=6)
 
-        max_page_label = tk.Label(page_frame, text="of 1", bg="#395A7F", fg="white")
-        max_page_label.pack(side="left", padx=(6, 20))
+        self.max_page_label = tk.Label(page_frame, text="of 1", bg="#2C3E50", fg="white")
+        self.max_page_label.pack(side="left", padx=(6, 20))
 
         next_btn = tk.Button(page_frame, text=">", command=lambda: change_page(1))
         next_btn.pack(side="left")
 
         # ------------ pagination helpers ------------
-
         def change_page(amount):
-            new_page = current_page.get() + amount
-            max_page = max(1, (len(result_rows) - 1) // rows_per_page + 1)
+            new_page = self.current_page.get() + amount
+            max_page = max(1, (len(self.result_rows) - 1) // self.rows_per_page + 1)
             if 1 <= new_page <= max_page:
-                current_page.set(new_page)
+                self.current_page.set(new_page)
                 update_page()
 
         def update_page():
-            tree.delete(*tree.get_children())
-            page = current_page.get()
-            start = (page - 1) * rows_per_page
-            end = start + rows_per_page
-            for row in result_rows[start:end]:
-                tree.insert("", tk.END, values=row)
-            max_page = max(1, (len(result_rows) - 1) // rows_per_page + 1)
-            page_entry.delete(0, tk.END)
-            page_entry.insert(0, str(page))
-            max_page_label.config(text=f"of {max_page}")
+            self.tree.delete(*self.tree.get_children())
+            page = self.current_page.get()
+            start = (page - 1) * self.rows_per_page
+            end = start + self.rows_per_page
+            for row in self.result_rows[start:end]:
+                self.tree.insert("", tk.END, values=row)
+            max_page = max(1, (len(self.result_rows) - 1) // self.rows_per_page + 1)
+            self.page_entry.delete(0, tk.END)
+            self.page_entry.insert(0, str(page))
+            self.max_page_label.config(text=f"of {max_page}")
 
         def go_to_page(event=None):
             try:
-                new_page = int(page_entry.get())
+                new_page = int(self.page_entry.get())
             except ValueError:
-                page_entry.delete(0, tk.END)
-                page_entry.insert(0, "1")
+                self.page_entry.delete(0, tk.END)
+                self.page_entry.insert(0, "1")
                 return
-            max_page = max(1, (len(result_rows) - 1) // rows_per_page + 1)
+            max_page = max(1, (len(self.result_rows) - 1) // self.rows_per_page + 1)
             new_page = max(1, min(new_page, max_page))
-            current_page.set(new_page)
+            self.current_page.set(new_page)
             update_page()
 
-        page_entry.bind("<Return>", lambda e: go_to_page())
+        self.page_entry.bind("<Return>", lambda e: go_to_page())
 
         # -------------------------------
         # DATA LOADING
         # -------------------------------
         def load_data():
-            nonlocal result_rows
-            result_rows = []
+            """Load/filter reservations into result_rows and refresh current page."""
+            self.result_rows = []
             conn = None
             try:
                 conn = db.connect()
@@ -187,24 +305,69 @@ class BookingRecordsFrame(tk.Frame):
                 )
                 params = []
 
-                if guest_var.get().strip() != "":
+                # Guest filter
+                if self.guest_var.get().strip() != "":
                     query += " AND (g.first_name || ' ' || g.last_name) LIKE ?"
-                    params.append(f"%{guest_var.get().strip()}%")
+                    params.append(f"%{self.guest_var.get().strip()}%")
 
-                if room_var.get().strip() != "":
+                # Room filter
+                if self.room_var.get().strip() != "":
                     query += " AND rm.room_number LIKE ?"
-                    params.append(f"%{room_var.get().strip()}%")
+                    params.append(f"%{self.room_var.get().strip()}%")
 
-                if status_var.get().strip() != "":
+                # Status filter
+                if self.status_var.get().strip() != "":
                     query += " AND r.status = ?"
-                    params.append(status_var.get().strip())
+                    params.append(self.status_var.get().strip())
 
-                query += " ORDER BY r.check_in_date DESC"
+                # Check-in After Date filter
+                if self.ci_year_var.get() and self.ci_month_var.get() and self.ci_day_var.get():
+                    try:
+                        y = int(self.ci_year_var.get())
+                        m = int(self.ci_month_var.get())
+                        d = int(self.ci_day_var.get())
+                        filter_date = f"{y:04d}-{m:02d}-{d:02d}"
+                        query += " AND r.check_in_date >= ?"
+                        params.append(filter_date)
+                    except ValueError:
+                        pass
+
+                # Check-out Before Date filter
+                if self.co_year_var.get() and self.co_month_var.get() and self.co_day_var.get():
+                    try:
+                        y = int(self.co_year_var.get())
+                        m = int(self.co_month_var.get())
+                        d = int(self.co_day_var.get())
+                        filter_date = f"{y:04d}-{m:02d}:{d:02d}"
+                        query += " AND r.check_out_date <= ?"
+                        params.append(filter_date)
+                    except ValueError:
+                        pass
+
+                # Active/Inactive filter
+                if self.show_active_var.get():
+                    # Show only active reservations
+                    query += " AND r.status IN ('Confirmed', 'Checked-in', 'Late', 'Late Check-out')"
+                else:
+                    # Show only inactive/completed reservations
+                    query += " AND r.status IN ('Cancelled', 'Complete')"
+
+                # ORDER-BY PRIORITY
+                query += """
+                    ORDER BY 
+                        CASE 
+                            WHEN r.status = 'Late Check-out' THEN 1
+                            WHEN r.status = 'Late' THEN 2
+                            WHEN r.status = 'Checked-in' THEN 3
+                            ELSE 99
+                        END,
+                        r.check_in_date DESC
+                """
 
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
-                result_rows = [
+                self.result_rows = [
                     (
                         r[0],
                         r[1],
@@ -213,9 +376,7 @@ class BookingRecordsFrame(tk.Frame):
                         r[4] or "",
                         r[5],
                         r[6],
-                        f"{r[7]:.2f}"
-                        if isinstance(r[7], (float, int))
-                        else r[7],
+                        f"{r[7]:.2f}" if isinstance(r[7], (float, int)) else r[7],
                         r[8],
                     )
                     for r in rows
@@ -224,14 +385,14 @@ class BookingRecordsFrame(tk.Frame):
             except sqlite3.Error as e:
                 msg = str(e).lower()
                 if "no such table" in msg:
-                    result_rows = []
+                    self.result_rows = []
                 else:
                     print("Database error:", e)
             finally:
                 if conn:
                     conn.close()
 
-            current_page.set(1)
+            self.current_page.set(1)
             update_page()
 
         # Make load_data accessible in refresh()
@@ -242,15 +403,14 @@ class BookingRecordsFrame(tk.Frame):
         # ----------------------------------------
         def open_edit_dialog(event=None):
             """Open edit dialog for selected reservation (double-click or button)."""
-            selection = tree.selection()
+            selection = self.tree.selection()
             if not selection:
                 messagebox.showwarning("No Selection", "Please select a reservation to edit.")
                 return
 
             selected_item = selection[0]
-            values = tree.item(selected_item, 'values')
-            
-            # values = (reservation_id, guest_id, guest_name, room_id, room_number, check_in, check_out, total_price, status)
+            values = self.tree.item(selected_item, "values")
+
             res_id = values[0]
             guest_name = values[2]
             room_num = values[4]
@@ -258,32 +418,44 @@ class BookingRecordsFrame(tk.Frame):
             check_out = values[6]
             current_status = values[8]
 
-            # Create edit window
             edit_win = tk.Toplevel(self)
             edit_win.title(f"Edit Reservation #{res_id}")
-            edit_win.geometry("400x350")
+            edit_w, edit_h = 450, 350
+            edit_win.geometry(f"{edit_w}x{edit_h}")
+            edit_win.configure(bg="#2C3E50")
             edit_win.resizable(False, False)
 
-            # Info labels
-            tk.Label(edit_win, text=f"Reservation #{res_id}", font=("Arial", 12, "bold")).pack(pady=10)
-            tk.Label(edit_win, text=f"Guest: {guest_name}").pack()
-            tk.Label(edit_win, text=f"Room: {room_num}").pack()
-            tk.Label(edit_win, text=f"Check-in: {check_in}").pack()
-            tk.Label(edit_win, text=f"Check-out: {check_out}").pack(pady=(0, 20))
+            edit_win.update_idletasks()  # ensure geometry is ready
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
 
-            # Status dropdown
-            tk.Label(edit_win, text="Update Status:", font=("Arial", 10, "bold")).pack(anchor="w", padx=20)
+            x = (screen_w // 2) - (edit_w // 2)
+            y = (screen_h // 2) - (edit_h // 2)
+
+            edit_win.geometry(f"{edit_w}x{edit_h}+{x}+{y}")
+
+            tk.Label(edit_win, text=f"Reservation #{res_id}", font=("Arial", 12, "bold"), bg="#2C3E50", fg="white").pack(pady=10)
+            tk.Label(edit_win, text=f"Guest: {guest_name}", bg="#2C3E50", fg="white").pack()
+            tk.Label(edit_win, text=f"Room: {room_num}", bg="#2C3E50", fg="white").pack()
+            tk.Label(edit_win, text=f"Check-in: {check_in}", bg="#2C3E50", fg="white").pack()
+            tk.Label(edit_win, text=f"Check-out: {check_out}", bg="#2C3E50", fg="white").pack(pady=(0, 20))
+
+            tk.Label(edit_win, text="Update Status:", font=("Arial", 10, "bold"), bg="#2C3E50", fg="white").pack(anchor="w", padx=20)
             status_options = ["Confirmed", "Checked-in", "Checked-out", "Cancelled", "Paid", "Unpaid", "Late", "No-show"]
             status_var_edit = tk.StringVar(value=current_status)
-            status_combo = ttk.Combobox(edit_win, textvariable=status_var_edit, values=status_options, state="readonly", width=30)
+            status_combo = ttk.Combobox(
+                edit_win,
+                textvariable=status_var_edit,
+                values=status_options,
+                state="readonly",
+                width=30
+            )
             status_combo.pack(pady=10, padx=20)
 
-            # Buttons frame
-            btn_frame = tk.Frame(edit_win)
+            btn_frame = tk.Frame(edit_win, bg="#2C3E50")
             btn_frame.pack(pady=20)
 
             def save_changes():
-                """Save the status update to the database."""
                 new_status = status_var_edit.get()
                 if new_status == current_status:
                     messagebox.showinfo("No Change", "Status unchanged.")
@@ -300,13 +472,12 @@ class BookingRecordsFrame(tk.Frame):
                     conn.commit()
                     conn.close()
                     messagebox.showinfo("Success", f"Reservation #{res_id} status updated to '{new_status}'.")
-                    load_data()  # Refresh table
+                    load_data()
                     edit_win.destroy()
                 except sqlite3.Error as e:
                     messagebox.showerror("Database Error", f"Failed to update reservation: {e}")
 
             def delete_reservation_confirm():
-                """Delete the reservation after confirmation."""
                 if messagebox.askyesno("Confirm Delete", f"Delete reservation #{res_id}? This cannot be undone."):
                     try:
                         conn = db.connect()
@@ -315,7 +486,7 @@ class BookingRecordsFrame(tk.Frame):
                         conn.commit()
                         conn.close()
                         messagebox.showinfo("Success", f"Reservation #{res_id} deleted.")
-                        load_data()  # Refresh table
+                        load_data()
                         edit_win.destroy()
                     except sqlite3.Error as e:
                         messagebox.showerror("Database Error", f"Failed to delete reservation: {e}")
@@ -329,8 +500,59 @@ class BookingRecordsFrame(tk.Frame):
             close_btn = tk.Button(btn_frame, text="Close", command=edit_win.destroy, width=10)
             close_btn.pack(side="left", padx=5)
 
-        # Bind double-click to open edit dialog
-        tree.bind("<Double-1>", open_edit_dialog)
+        self.tree.bind("<Double-1>", open_edit_dialog)
+
+        # -----------------------
+        # Day dropdown updaters
+        # -----------------------
+        def update_day_dropdown_ci(*args):
+            """Update day list for Check-in After filter."""
+            year = self.ci_year_var.get()
+            month = self.ci_month_var.get()
+
+            if not year.isdigit() or not month.isdigit():
+                self.ci_day_cb["values"] = []
+                self.ci_day_var.set("")
+                return
+
+            year = int(year)
+            month = int(month)
+
+            _, num_days = calendar.monthrange(year, month)
+            day_values = list(range(1, num_days + 1))
+            self.ci_day_cb["values"] = day_values
+
+            if self.ci_day_var.get().isdigit() and int(self.ci_day_var.get()) <= num_days:
+                return
+
+            self.ci_day_var.set("")
+
+        def update_day_dropdown_co(*args):
+            """Update day list for Check-out Before filter."""
+            year = self.co_year_var.get()
+            month = self.co_month_var.get()
+
+            if not year.isdigit() or not month.isdigit():
+                self.co_day_cb["values"] = []
+                self.co_day_var.set("")
+                return
+
+            year = int(year)
+            month = int(month)
+
+            _, num_days = calendar.monthrange(year, month)
+            day_values = list(range(1, num_days + 1))
+            self.co_day_cb["values"] = day_values
+
+            if self.co_day_var.get().isdigit() and int(self.co_day_var.get()) <= num_days:
+                return
+
+            self.co_day_var.set("")
+
+        self.ci_year_var.trace_add("write", update_day_dropdown_ci)
+        self.ci_month_var.trace_add("write", update_day_dropdown_ci)
+        self.co_year_var.trace_add("write", update_day_dropdown_co)
+        self.co_month_var.trace_add("write", update_day_dropdown_co)
 
         # Initial load
         load_data()
@@ -339,7 +561,32 @@ class BookingRecordsFrame(tk.Frame):
         guest_entry.bind("<Return>", lambda e: load_data())
         room_entry.bind("<Return>", lambda e: load_data())
 
+    # -----------------------
+    # Utility methods
+    # -----------------------
+    def reset_filters(self):
+        """Resets all filter inputs back to blank/empty."""
+        self.guest_var.set("")
+        self.room_var.set("")
+        self.status_var.set("")
+        self.ci_year_var.set("")
+        self.ci_month_var.set("")
+        self.ci_day_var.set("")
+        self.co_year_var.set("")
+        self.co_month_var.set("")
+        self.co_day_var.set("")
+        self.show_active_var.set(True)
+
+        # Clear day dropdown values to avoid stale data
+        try:
+            self.ci_day_cb["values"] = []
+            self.co_day_cb["values"] = []
+        except Exception:
+            pass
+
     def refresh(self):
         """Called when this frame is shown."""
+        # If you want filters to automatically clear when the frame is shown:
+        # self.reset_filters()
         if hasattr(self, "_load_data"):
             self._load_data()

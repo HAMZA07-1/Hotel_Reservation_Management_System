@@ -67,7 +67,7 @@ class RoomStatusFrame(tk.Frame):
 
         # Back button
         back_btn = tk.Button(
-            filter_frame, text="Back", command=lambda: self.controller.show_frame("main_menu")
+            filter_frame, text="Back", command=lambda: (self.reset_filters(), self.controller.show_frame("main_menu"))
         )
         back_btn.pack(side="left", padx=10)
 
@@ -119,6 +119,14 @@ class RoomStatusFrame(tk.Frame):
         )
         capacity_dropdown.current(0)
         capacity_dropdown.pack(side="left", padx=5)
+
+        # Clear Filters Button
+        clear_btn = tk.Button(
+            filter_frame,
+            text="Clear Filters",
+            command=lambda: (self.reset_filters(), self.refresh()),
+        )
+        clear_btn.pack(side="left", padx=8)
 
         # Filter button
         refresh_btn = tk.Button(filter_frame, text="Filter", command=self.load_data)
@@ -411,3 +419,10 @@ class RoomStatusFrame(tk.Frame):
         self.load_data()
         #Update room availability every refresh as well
         self.controller.db.update_room_availability_today()
+
+    def reset_filters(self):
+        """"Resets filters to blank/empty"""
+        self.room_number_var.set("")
+        self.available_var.set(True)
+        self.smoking_var.set("")
+        self.capacity_var.set("")
