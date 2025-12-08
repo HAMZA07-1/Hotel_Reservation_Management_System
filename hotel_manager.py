@@ -1,7 +1,7 @@
 """
 Module: hotel_manager.py
-Date: 11/21/2025
-Programmer: Keano
+Date: 12/07/2025
+Programmer: Keano, Daniel
 
 Description:
 This module contains the HotelManager class, which implements the core business logic for hotel operations.
@@ -35,7 +35,7 @@ Algorithms:
 """
 from datetime import datetime, time, timedelta
 import sqlite3
-from typing import Optional, List
+from typing import Optional, List, Union
 from database_manager import DatabaseManager
 
 class HotelManager:
@@ -336,8 +336,7 @@ class HotelManager:
                 cancellation_reason = "Late cancellation (within 24 hours)"
             elif status == "Confirmed":  # No-show scenario, used by employee/manager
                 nightly_rate = self.db.get_room_price(room_id)
-                no_show_fee = 50.00
-                final_fee = nightly_rate + no_show_fee
+                final_fee = nightly_rate
                 cancellation_reason = "No-show cancellation"
             elif status == "Checked-in":
                 cur.execute("ROLLBACK")
@@ -398,3 +397,206 @@ class HotelManager:
 
         pass
 
+    def search_reservation(
+        self,
+        *,
+        # --- Identity & Guest ---
+        reservation_id: Optional[Union[int, List[int]]] = None,
+        guest_id: Optional[Union[int, List[int]]] = None,
+        email: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        phone: Optional[str] = None,
+
+        # --- Room Filters ---
+        room_number: Optional[str] = None,
+        room_id: Optional[Union[int, List[int]]] = None,
+        room_type: Optional[Union[str, List[str]]] = None,
+        smoking: Optional[bool] = None,
+        min_capacity: Optional[int] = None,
+        max_capacity: Optional[int] = None,
+
+        # --- Price Filters ---
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        min_total: Optional[float] = None,
+        max_total: Optional[float] = None,
+
+        # --- Status ---
+        status: Optional[Union[str, List[str]]] = None,
+        is_paid: Optional[int] = None,
+
+        # --- Dates ---
+        check_in: Optional[str] = None,       # Exact match
+        check_out: Optional[str] = None,      # Exact match
+        stay_start: Optional[str] = None,     # Overlap (start window)
+        stay_end: Optional[str] = None,       # Overlap (end window)
+
+        # --- Sorting ---
+        sort_by: str = "check_in_date",
+        sort_dir: str = "asc"
+
+    ) -> List[sqlite3.Row]:
+
+        # Normalize "List or Single" parameters
+        if reservation_id is not None and not isinstance(reservation_id, list):
+            reservation_id = [reservation_id]
+        if guest_id is not None and not isinstance(guest_id, list):
+            guest_id = [guest_id]
+        if room_id is not None and not isinstance(room_id, list):
+            room_id = [room_id]
+        if room_type is not None and not isinstance(room_type, list):
+            room_type = [room_type]
+        if status is not None and not isinstance(status, list):
+            status = [status]
+
+        # Empty list -> None
+        if reservation_id is not None and len(reservation_id) == 0:
+            reservation_id = None
+        if guest_id is not None and len(guest_id) == 0:
+            guest_id = None
+        if room_id is not None and len(room_id) == 0:
+            room_id = None
+        if room_type is not None and len(room_type) == 0:
+            room_type = None
+        if status is not None and len(status) == 0:
+            status = None
+
+        # Date validation (reuse _parse_dates for pairs)
+        if stay_start and stay_end:
+            stay_start, stay_end, _ = self._parse_dates(stay_start, stay_end)
+        elif stay_start:
+            datetime.strptime(stay_start, "%Y-%m-%d")  # validate only
+        elif stay_end:
+            datetime.strptime(stay_end, "%Y-%m-%d")  # validate only
+
+        # Base Query
+        query = """
+            SELECT
+                r.*,
+                g.first_name, g.last_name, g.email, g.phone_number, 
+                rm.room_number, rm.room_type, rm.smoking, rm.capacity, rm.price
+            FROM reservations r 
+            JOIN guests g ON r.guest_id = g.guest_id
+            JOIN rooms rm ON r.room_id = rm.room_id
+            WHERE 1=1
+        """
+        params = []
+
+        if reservation_id:
+            placeholders = ", ".join(["?"] * len(reservation_id))
+            query += f" AND r.reservation_id IN ({placeholders})"
+            params.extend(reservation_id)
+
+        if guest_id:
+            placeholders = ", ".join(["?"] * len(guest_id))
+            query += f" AND r.guest_id IN ({placeholders})"
+            params.extend(guest_id)
+
+        if email:
+            query += " AND LOWER(g.email) = ?"
+            params.append(email.strip().lower())
+
+        if first_name:
+            query += " AND LOWER(g.first_name) LIKE ?"
+            params.append(f"%{first_name.strip().lower()}%")
+
+        if last_name:
+            query += " AND LOWER(g.last_name) LIKE ?"
+            params.append(f"%{last_name.strip().lower()}%")
+
+        if phone:
+            query += " AND g.phone_number LIKE ?"
+            params.append(f"%{phone.strip()}%")
+
+        if room_number:
+            query += " AND rm.room_number LIKE ?"
+            params.append(f"%{room_number.strip()}%")
+
+        if room_id:
+            placeholders = ", ".join(["?"] * len(room_id))
+            query += f" AND r.room_id IN ({placeholders})"
+            params.extend(room_id)
+
+        if room_type:
+            placeholders = ", ".join(["?"] * len(room_type))
+            query += f" AND rm.room_type IN ({placeholders})"
+            params.extend(room_type)
+
+        if smoking is not None:
+            query += " AND rm.smoking = ?"
+            params.append(1 if smoking else 0)
+
+        if min_capacity is not None:
+            query += " AND rm.capacity >= ?"
+            params.append(min_capacity)
+        if max_capacity is not None:
+            query += " AND rm.capacity <= ?"
+            params.append(max_capacity)
+
+        if min_price is not None:
+            query += " AND rm.price >= ?"
+            params.append(min_price)
+        if max_price is not None:
+            query += " AND rm.price <= ?"
+            params.append(max_price)
+
+        if min_total is not None:
+            query += " AND r.total_price >= ?"
+            params.append(min_total)
+        if max_total is not None:
+            query += " AND r.total_price <= ?"
+            params.append(max_total)
+
+        if status:
+            placeholders = ", ".join(["?"] * len(status))
+            query += f" AND r.status IN ({placeholders})"
+            params.extend(status)
+
+        if is_paid is not None:
+            query += " AND r.is_paid = ?"
+            params.append(1 if is_paid else 0)
+
+        if check_in:
+            query += " AND r.check_in_date = ?"
+            params.append(check_in)
+
+        if check_out:
+            query += " AND r.check_out_date = ?"
+            params.append(check_out)
+
+        # Date Filters (Ranges)
+        # Scenario A: Bounded Range (Start AND End)
+        if stay_start and stay_end:
+            # Standard Overlap Logic
+            query += " AND (r.check_in_date < ? AND r.check_out_date > ?)"
+            params.append(stay_end)
+            params.append(stay_start)
+        # Scenario B: Open-Ended Start ("From this date onward")
+        elif stay_start:
+            # Show anything that is still in the hotel after this start date
+            query += " AND r.check_out_date > ?"
+            params.append(stay_start)
+        # Scenario C: Open-Ended End ("Up until this date")
+        elif stay_end:
+            # Show anything that arrived before this cutoff
+            query += " AND r.check_in_date < ?"
+            params.append(stay_end)
+
+        valid_sort_cols = {
+            "check_in_date": "r.check_in_date",
+            "check_out_date": "r.check_out_date",
+            "guest_id": "r.guest_id",
+            "last_name": "g.last_name",
+            "room_number": "rm.room_number",
+            "total_price": "r.total_price",
+            "status": "r.status"
+        }
+
+        # Default to check_in_date if invalid sort column passed
+        col_sql = valid_sort_cols.get(sort_by, "r.check_in_date")
+        dir_sql = "DESC" if sort_dir.lower() == "desc" else "ASC"
+
+        query += f" ORDER BY {col_sql} {dir_sql}"
+
+        return self.db.execute_query(query, tuple(params))
