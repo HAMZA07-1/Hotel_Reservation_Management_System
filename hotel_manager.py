@@ -66,6 +66,7 @@ class HotelManager:
         *,
         check_in: Optional[str] = None,
         check_out: Optional[str] = None,
+        num_guests: Optional[int] = None,
         room_ids: Optional[List[int]] = None,
         room_number_like: Optional[str] = None,
         room_types: Optional[List[str]] = None,
@@ -83,6 +84,20 @@ class HotelManager:
 
         Search rooms for manager/employee workflows using attribute filters plus optional
         date-window overlap logic. All filters combine with logical AND.
+
+        Parameters:
+        - check_in, check_out: Date range for availability checking (YYYY-MM-DD format)
+        - num_guests: Minimum capacity required (room.capacity >= num_guests).
+                      Convenience parameter for customer bookings.
+        - room_ids: Filter by specific room IDs
+        - room_number_like: Case-insensitive substring match for room numbers
+        - room_types: Filter by room type(s)
+        - min_capacity, max_capacity: Capacity range for inventory searches
+        - min_price, max_price: Price range filter
+        - smoking: Filter by smoking status
+        - is_available: Filter by inventory availability flag (0/1)
+        - availability: "free" (default), "occupied", or "all" - controls date overlap logic
+        - sort_by, sort_dir: Sorting options
 
         See user-provided specification for detailed behavior rules.
         """
@@ -138,7 +153,12 @@ class HotelManager:
             sql_parts.append(f"AND r.room_type IN ({placeholders})")
             params.extend(room_types)
 
-        # Capacity bounds
+        # Number of guests (ensures room can accommodate party size)
+        if num_guests is not None:
+            sql_parts.append("AND r.capacity >= ?")
+            params.append(num_guests)
+
+        # Capacity bounds (for range-based searches)
         if min_capacity is not None:
             sql_parts.append("AND r.capacity >= ?")
             params.append(min_capacity)
