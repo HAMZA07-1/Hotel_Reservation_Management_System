@@ -69,6 +69,9 @@ from database_manager import DatabaseManager
 class HotelManager:
     """Handles hotel operations: room search, reservations, cancellations and pricing."""
 
+    MAX_ADVANCE_DAYS = 365
+    MAX_STAY_NIGHTS = 30
+
     def __init__(self, db: DatabaseManager):
         """Initializes the HotelManager, creating a DatabaseManager instance."""
         self.db = db
@@ -95,9 +98,9 @@ class HotelManager:
         check_in: Optional[str] = None,
         check_out: Optional[str] = None,
         num_guests: Optional[int] = None,
-        room_ids: Optional[List[int]] = None,
+        room_ids: Optional[Union[int, List[int]]] = None,  #Allow int or List[int]
         room_number_like: Optional[str] = None,
-        room_types: Optional[List[str]] = None,
+        room_types: Optional[Union[str, List[str]]] = None,  #Allow str or List[str]
         min_capacity: Optional[int] = None,
         max_capacity: Optional[int] = None,
         min_price: Optional[float] = None,
@@ -129,6 +132,13 @@ class HotelManager:
 
         See user-provided specification for detailed behavior rules.
         """
+
+        # Convert single values to lists for consistent handling
+        if room_ids is not None and not isinstance(room_ids, list):
+            room_ids = [room_ids]
+        if room_types is not None and not isinstance(room_types, list):
+            room_types = [room_types]
+
         # Normalize empty lists to None
         if room_ids is not None and len(room_ids) == 0:
             room_ids = None
@@ -277,13 +287,24 @@ class HotelManager:
 
         """Creates a new reservation in the database with transactional safety."""
         # Date parsing and initial validation
-        ci_iso, co_iso, _ = self._parse_dates(check_in, check_out)
+        ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
+
+        if nights > self.MAX_STAY_NIGHTS:
+            raise ValueError(f"Stay duration ({nights} nights) exceeds maximum allowed ({self.MAX_STAY_NIGHTS} nights).")
+
+        today = datetime.now().date()
+        ci_date_obj = datetime.strptime(ci_iso, "%Y-%m-%d").date()
+        if (ci_date_obj - today).days > self.MAX_ADVANCE_DAYS:
+            raise ValueError(f"Check-in date cannot be more than {self.MAX_ADVANCE_DAYS} days in the future.")
 
         if not self.db.guest_exists(guest_id = guest_id):
             raise ValueError("Guest does not exist.")
 
         if not self.db.room_exists(room_id = room_id):
             raise ValueError("Room does not exist.")
+
+        if num_guests is not None and num_guests < 1:
+            raise ValueError("Number of guests must be at least 1.")
 
         if num_guests is not None:
             room = self.db.get_room(room_id=room_id)
@@ -499,6 +520,19 @@ class HotelManager:
                 cur.execute("ROLLBACK")
                 raise ValueError("Reservation not found.")
 
+            # Ensure at least one change is made
+            changes_requested = any([
+                new_room_id is not None and new_room_id != row["room_id"],
+                new_check_in is not None and new_check_in != row["check_in_date"],
+                new_check_out is not None and new_check_out != row["check_out_date"],
+                new_num_guests is not None and new_num_guests != row["num_guests"],
+                is_paid is not None and is_paid != row["is_paid"]
+            ])
+
+            if not changes_requested:
+                cur.execute("ROLLBACK")
+                raise ValueError("No changes detected. At least one field must be updated.")
+
             # Block updates for reservations that are already closed
             if row["status"] in ("Cancelled", "Checked-out", "Complete", "No-show", "Late", "Late Check-out"):
                 cur.execute("ROLLBACK")
@@ -513,17 +547,33 @@ class HotelManager:
             # Validation: Date Logic
             # Standard Date Logic
             ci_iso, co_iso, nights = self._parse_dates(final_check_in, final_check_out)
+            # Maximum stay date range is 30 days
+            if nights > self.MAX_STAY_NIGHTS:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Stay duration ({nights} nights) exceeds maximum allowed ({self.MAX_STAY_NIGHTS} nights).")
             # Cannot change check-in date if already checked-in
             if row["status"] == "Checked-in" and new_check_in is not None:
                 if new_check_in != row["check_in_date"]:
                     cur.execute("ROLLBACK")
                     raise ValueError("Cannot change check-in date: Guest is already checked-in.")
-            # Cannot change check-out date to a date that already passed
+            if row["status"] == "Checked-in" and new_room_id is not None:
+                if new_room_id != row["room_id"]:
+                    cur.execute("ROLLBACK")
+                    raise ValueError("Cannot change room: Guest is already checked-in. Check out first.")
+            # Cannot set check-in or check-out dates to dates that already passed
             today = datetime.now().date()
+            ci_date_obj = datetime.strptime(final_check_in, "%Y-%m-%d").date()
             co_date_obj = datetime.strptime(final_check_out, "%Y-%m-%d").date()
+            if ci_date_obj < today:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"New check-in date ({final_check_in}) cannot be in the past.")
             if co_date_obj < today:
                 cur.execute("ROLLBACK")
                 raise ValueError(f"New check-out date ({final_check_out}) cannot be in the past.")
+            # Can only reserve less than 1 year in advance
+            if (ci_date_obj - today).days > self.MAX_ADVANCE_DAYS:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Check-in date cannot be more than {self.MAX_ADVANCE_DAYS } days in the future.")
 
             # Validation: Capacity
             if new_room_id and new_room_id != row["room_id"]:
@@ -539,6 +589,9 @@ class HotelManager:
             if final_guests > capacity_limit:
                 cur.execute("ROLLBACK")
                 raise ValueError(f"Room capacity ({capacity_limit}) exceeded by guest count ({final_guests}).")
+            if final_guests is not None and final_guests < 1:
+                cur.execute("ROLLBACK")
+                raise ValueError("Number of guests must be at least 1.")
 
             # Validation: Availability
             check_availability = (
@@ -661,7 +714,7 @@ class HotelManager:
 
     ) -> List[sqlite3.Row]:
 
-        # Normalize "List or Single" parameters
+        # Convert single values to lists for consistent handling
         if reservation_id is not None and not isinstance(reservation_id, list):
             reservation_id = [reservation_id]
         if guest_id is not None and not isinstance(guest_id, list):
