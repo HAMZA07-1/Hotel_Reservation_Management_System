@@ -17,7 +17,6 @@ from metrics_frame import MetricsFrame
 from employee_frame import EmployeeProfileFrame
 from reservation_form_frame import ReservationFormFrame
 from hotel_manager import HotelManager
-from customer_menu_frame import CustomerMenuFrame
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
