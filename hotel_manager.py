@@ -1,37 +1,65 @@
 """
 Module: hotel_manager.py
-Date: 12/07/2025
+Date: 12/08/2025
 Programmer: Keano, Daniel
 
 Description:
 This module contains the HotelManager class, which implements the core business logic for hotel operations.
 It acts as an intermediary between the user interface/API layer and the database layer (DatabaseManager).
-Its responsibilities include advanced room searching, price calculation, and handling the reservation process
-with transactional integrity.
+Its responsibilities include advanced room searching, price calculation, and handling reservation operations
+(create, read, update, cancel) with transactional integrity to prevent race conditions.
 
 Important Functions:
 - search_rooms(...): Performs a complex search for rooms based on a variety of filter criteria. It dynamically
-  builds a SQL query to match all specified conditions.
-  Input: A set of optional keyword arguments like check_in, check_out, room_types, capacity, price, etc.
+  builds a SQL query to match all specified conditions including check-in/check-out dates, room types, capacity,
+  price range, availability status, and guest count.
+  Input: A set of optional keyword arguments like check_in, check_out, room_types, min_capacity, max_capacity,
+         min_price, max_price, availability, num_guests, etc.
   Output: A list of sqlite3.Row objects representing the matching rooms.
+
+- search_reservation(...): Performs a complex search for reservations based on multiple filter criteria. Dynamically
+  builds a SQL query with JOINs to include guest and room information.
+  Input: Optional filters including reservation_id, guest_id, room_id, guest names, email, room_type, status,
+         price ranges, and date ranges.
+  Output: A list of sqlite3.Row objects with complete reservation, guest, and room details.
+
 - calculate_total_price(...): Calculates the total cost of a stay based on the room's nightly price and the
   number of nights.
   Input: room_id (int), check_in (str), check_out (str).
   Output: float representing the total price.
-- reserve_room(...): Creates a new reservation. It performs a critical check for room availability within a
-  database transaction to prevent double-booking (race conditions).
-  Input: guest_id (int), room_id (int), check_in (str), check_out (str).
+
+- reserve_room(...): Creates a new reservation with transactional safety. It performs validation checks (guest
+  exists, room exists, room availability) within a database transaction to prevent double-booking (race conditions).
+  Input: guest_id (int), room_id (int), check_in (str), check_out (str), num_guests (int), status (str, optional).
   Output: int, the ID of the newly created reservation.
 
+- update_reservation(...): Updates an existing reservation with transactional safety. Validates all changes
+  (dates, room change, capacity, availability) and recalculates pricing. Handles payment status based on price
+  changes.
+  Input: reservation_id (int), and optional parameters for new_room_id, new_check_in, new_check_out, new_num_guests,
+         new_status, is_paid.
+  Output: Dictionary containing update confirmation, old/new values, and price difference.
+
+- cancel_reservation(...): Cancels a reservation and calculates applicable cancellation fees based on timing.
+  Applies different fee structures: free if >24h before check-in, 50% if <24h before check-in, 100% if after
+  check-in time. Uses transactional safety to prevent race conditions.
+  Input: reservation_id (int).
+  Output: Dictionary containing cancellation receipt with fee details and refund amount.
+
 Algorithms:
-- Dynamic SQL Query Construction (in search_rooms): The search function constructs a SQL query string and a
-  corresponding parameter list piece-by-piece. Each filter argument adds a new 'AND' clause to the WHERE
-  statement. This approach is flexible and avoids writing numerous pre-defined queries. It's chosen for its
+- Dynamic SQL Query Construction (in search_rooms and search_reservation): These functions construct SQL query
+  strings and corresponding parameter lists piece-by-piece. Each filter argument adds a new 'AND' clause to the
+  WHERE statement. This approach is flexible and avoids writing numerous pre-defined queries. It's chosen for its
   scalability as new search filters can be added easily.
-- Transactional Reservation (in reserve_room): To prevent a race condition where two users might book the same
-  room for the same dates simultaneously, this function uses a database transaction ('BEGIN IMMEDIATE'). It first
-  locks the database for writing, then re-checks for availability, and only then inserts the new reservation. If
-  the room was taken in the meantime, the transaction is rolled back. This ensures data consistency.
+
+- Transactional CRUD Operations (in reserve_room, update_reservation, cancel_reservation): To prevent race
+  conditions where two users might book/modify the same room for overlapping dates simultaneously, these functions
+  use database transactions with 'BEGIN IMMEDIATE'. They lock the database for writing, perform validation checks,
+  execute the operation, and commit or rollback as needed. This ensures data consistency and prevents double-booking.
+
+- Stay Date Overlap Detection: Uses SQL logic to check if two date ranges overlap:
+  NOT (check_out_date <= new_check_in OR check_in_date >= new_check_out)
+  This ensures reservations cannot be created or updated if they would conflict with existing occupied reservations.
 """
 from datetime import datetime, time, timedelta
 import sqlite3
@@ -430,18 +458,25 @@ class HotelManager:
     ) -> dict:
 
         """
-        Updates an existing reservation (Dates, Room, or Guest Count)
+        Updates an active reservation's details with transactional safety and automatic validation.
 
-        Business Logic:
-        - New input overwrites old DB values
-        - Validates new dates
-        - Checks Room Capacity
-        - Checks room availability
-        - Recalculates Total Price
-        - Updates the database record.
+        Performs atomic checks for room availability (excluding self-overlap) and capacity.
+        Automatically recalculates the total price and adjusts payment status: defaults to
+        'Unpaid' if the price increases, unless a manual `is_paid` override is provided.
+
+        Args:
+            reservation_id (int): The ID of the reservation to modify.
+            new_room_id (int, optional): ID of the new room if moving or upgrading.
+            new_check_in (str, optional): New start date (YYYY-MM-DD).
+            new_check_out (str, optional): New end date (YYYY-MM-DD).
+            new_num_guests (int, optional): New total guest count.
+            is_paid (bool, optional): Force payment status (True=Paid). Use if settling balance immediately.
 
         Returns:
-            dict: {success, old_price, new_price, difference, message}
+            dict: Summary containing 'success', 'old_price', 'new_price', 'difference', and final 'is_paid' status.
+
+        Raises:
+            ValueError: If reservation is closed, room is unavailable, capacity exceeded, or dates are invalid.
         """
 
         conn = self.db.connect()
