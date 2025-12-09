@@ -472,7 +472,110 @@ class DatabaseManager:
 
         return rows
 
-    #Calls daily startup methods below
+    def get_filtered_reservations(
+            self,
+            guest_name=None,
+            room_number=None,
+            status=None,
+            checkin_after=None,
+            checkout_before=None,
+            show_active=True
+    ):
+        """Return filtered reservations based on the provided filters."""
+        conn = None
+        results = []
+
+        try:
+            conn = self.connect()
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            query = (
+                "SELECT r.reservation_id, r.guest_id, "
+                "g.first_name || ' ' || g.last_name AS guest_name, "
+                "r.room_id, rm.room_number, r.check_in_date, "
+                "r.check_out_date, r.total_price, r.status "
+                "FROM reservations r "
+                "LEFT JOIN guests g ON r.guest_id = g.guest_id "
+                "LEFT JOIN rooms rm ON r.room_id = rm.room_id "
+                "WHERE 1=1"
+            )
+            params = []
+
+            # Guest filter
+            if guest_name:
+                query += " AND (g.first_name || ' ' || g.last_name) LIKE ?"
+                params.append(f"%{guest_name}%")
+
+            # Room filter
+            if room_number:
+                query += " AND rm.room_number LIKE ?"
+                params.append(f"%{room_number}%")
+
+            # Status filter
+            if status:
+                query += " AND r.status = ?"
+                params.append(status)
+
+            # Check-in after
+            if checkin_after:
+                query += " AND r.check_in_date >= ?"
+                params.append(checkin_after)
+
+            # Check-out before
+            if checkout_before:
+                query += " AND r.check_out_date <= ?"
+                params.append(checkout_before)
+
+            # Active/Inactive filter
+            if show_active:
+                query += " AND r.status IN ('Confirmed', 'Checked-in', 'Late', 'Late Check-out')"
+            else:
+                query += " AND r.status IN ('Cancelled', 'Complete')"
+
+            # Priority ordering
+            query += """
+                ORDER BY 
+                    CASE 
+                        WHEN r.status = 'Late Check-out' THEN 1
+                        WHEN r.status = 'Late' THEN 2
+                        WHEN r.status = 'Checked-in' THEN 3
+                        ELSE 99
+                    END,
+                    r.check_in_date DESC
+            """
+
+            cur.execute(query, params)
+            rows = cur.fetchall()
+
+            # Normalize result format
+            results = [
+                (
+                    r["reservation_id"],
+                    r["guest_id"],
+                    r["guest_name"] or "",
+                    r["room_id"],
+                    r["room_number"] or "",
+                    r["check_in_date"],
+                    r["check_out_date"],
+                    f"{r['total_price']:.2f}" if isinstance(r["total_price"], (float, int)) else r["total_price"],
+                    r["status"],
+                )
+                for r in rows
+            ]
+
+        except sqlite3.Error as e:
+            print("Database error:", e)
+
+        finally:
+            if conn:
+                conn.close()
+
+        return results
+
+    #------------------------------------------
+    # DAILY RESERVATION START UP METHODS BELOW
+    #------------------------------------------
     def run_daily_reservation_updates(self):
         self.mark_late_reservations()
         self.mark_late_checkouts()
@@ -550,7 +653,7 @@ class DatabaseManager:
         cur.execute("""
             SELECT reservation_id, check_in_date
             FROM reservations
-            WHERE status = 'Late'
+            WHERE status = 'Late' OR status = 'Late Check-out'
         """)
 
         late_reservations = cur.fetchall()
