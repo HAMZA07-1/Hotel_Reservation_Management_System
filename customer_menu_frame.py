@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 # Try to import the customer UI function
 try:
@@ -74,7 +74,7 @@ class CustomerMenuFrame(tk.Frame):
 
     def _ensure_customer_ui(self):
         if open_customer_window is None:
-            tk.messagebox.showerror("Missing module", "customer_window.py not found or has import errors.")
+            messagebox.showerror("Missing module", "customer_window.py not found or has import errors.")
             return False
         return True
 
