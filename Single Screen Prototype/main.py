@@ -1,5 +1,12 @@
 import os
+import sys
 from tkinter import ttk
+
+# Ensure repository root is on sys.path so imports from repo root work
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+    
 from database_manager import DatabaseManager
 from config import DB_PATH
 import tkinter as tk
