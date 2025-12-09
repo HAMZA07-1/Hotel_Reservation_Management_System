@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     check_out_date DATE NOT NULL, -- 'YYYY-MM-DD'
     num_guests INTEGER,
     total_price REAL NOT NULL,
-    status TEXT NOT NULL,   -- Confirmed, Cancelled, Checked-in, Complete
+    status TEXT NOT NULL,   -- Confirmed, Cancelled, Checked-in, Complete, Late, Late Check-out
     is_paid INTEGER DEFAULT 0,
 
     FOREIGN KEY (guest_id) REFERENCES guests(guest_id) ON DELETE CASCADE,

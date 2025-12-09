@@ -491,7 +491,7 @@ class DatabaseManager:
             WHERE check_in_date = ?
               AND status != 'Checked-in'
               AND status != 'Cancelled'
-              AND status != 'Checked-out'
+              AND status != 'Complete'
         """, (yesterday,))
 
         conn.commit()
@@ -520,7 +520,7 @@ class DatabaseManager:
                 SELECT reservation_id
                 FROM reservations
                 WHERE check_out_date = ?
-                  AND status NOT IN ('Checked-out', 'Late Check-out', 'Late')
+                  AND status NOT IN ('Complete', 'Late Check-out', 'Late')
             """, (today.isoformat(),))
 
             late_res_list = cursor.fetchall()
