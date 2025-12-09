@@ -419,19 +419,171 @@ class HotelManager:
         finally:
             conn.close()
 
-
-
     def update_reservation(
         self,
-        reservation_id: int,
-        room_id: int = None,
-        check_in: str = None,
-        check_out: str = None,
-        num_guests: int = None,
-        status: str = None
-    ) -> bool:
+        reservation_id: int,  # REQUIRED: The target
+        new_room_id: Optional[int] = None,  # OPTIONAL: Only if moving rooms
+        new_check_in: Optional[str] = None,  # OPTIONAL: Only if start date changes
+        new_check_out: Optional[str] = None,  # OPTIONAL: Only if end date changes
+        new_num_guests: Optional[int] = None,  # OPTIONAL: Only if guest count changes
+        is_paid: Optional[int] = None           # OPTIONAL: Only if customer pays cash at register
+    ) -> dict:
 
-        pass
+        """
+        Updates an existing reservation (Dates, Room, or Guest Count)
+
+        Business Logic:
+        - New input overwrites old DB values
+        - Validates new dates
+        - Checks Room Capacity
+        - Checks room availability
+        - Recalculates Total Price
+        - Updates the database record.
+
+        Returns:
+            dict: {success, old_price, new_price, difference, message}
+        """
+
+        conn = self.db.connect()
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+
+        try:
+            conn.isolation_level = None
+            cur.execute("BEGIN IMMEDIATE")
+
+            cur.execute("""
+                SELECT r.*, rm.capacity as current_room_capacity
+                FROM reservations r 
+                JOIN rooms rm ON r.room_id = rm.room_id
+                WHERE r.reservation_id = ?
+            """, (reservation_id,))
+
+            row = cur.fetchone()
+            if not row:
+                cur.execute("ROLLBACK")
+                raise ValueError("Reservation not found.")
+
+            # Block updates for reservations that are already closed
+            if row["status"] in ("Cancelled", "Checked-out", "Complete", "No-show", "Late", "Late Check-out"):
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Cannot update reservation with status: {row['status']}.")
+
+            # Resolve Final Values (New Input or Existing DB Value)
+            final_room_id = new_room_id if new_room_id is not None else row["room_id"]
+            final_check_in = new_check_in if new_check_in is not None else row["check_in_date"]
+            final_check_out = new_check_out if new_check_out is not None else row["check_out_date"]
+            final_guests = new_num_guests if new_num_guests is not None else row["num_guests"]
+
+            # Validation: Date Logic
+            # Standard Date Logic
+            ci_iso, co_iso, nights = self._parse_dates(final_check_in, final_check_out)
+            # Cannot change check-in date if already checked-in
+            if row["status"] == "Checked-in" and new_check_in is not None:
+                if new_check_in != row["check_in_date"]:
+                    cur.execute("ROLLBACK")
+                    raise ValueError("Cannot change check-in date: Guest is already checked-in.")
+            # Cannot change check-out date to a date that already passed
+            today = datetime.now().date()
+            co_date_obj = datetime.strptime(final_check_out, "%Y-%m-%d").date()
+            if co_date_obj < today:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"New check-out date ({final_check_out}) cannot be in the past.")
+
+            # Validation: Capacity
+            if new_room_id and new_room_id != row["room_id"]:
+                cur.execute("SELECT capacity FROM rooms WHERE room_id = ?", (final_room_id,))
+                room_row = cur.fetchone()
+                if not room_row:
+                    cur.execute("ROLLBACK")
+                    raise ValueError(f"New room ID {final_room_id} does not exist.")
+                capacity_limit = room_row["capacity"]
+            else:
+                capacity_limit = row["current_room_capacity"]
+
+            if final_guests > capacity_limit:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Room capacity ({capacity_limit}) exceeded by guest count ({final_guests}).")
+
+            # Validation: Availability
+            check_availability = (
+                new_check_in is not None or
+                new_check_out is not None or
+                (new_room_id is not None and new_room_id != row["room_id"])
+            )
+
+            if check_availability:
+                occ = DatabaseManager.OCCUPIED_STATUSES
+                placeholders = ",".join(["?"] * len(occ))
+
+                # Check if any reservation overlaps our new range BUT exclude current reservation_id from the results
+                query = f"""
+                    SELECT 1 from reservations
+                    WHERE room_id = ?
+                        AND reservation_id != ?
+                        AND status IN ({placeholders})
+                        AND NOT (check_out_date <= ? OR check_in_date >= ?)
+                        LIMIT 1
+                """
+                params = [final_room_id, reservation_id] + list(occ) + [ci_iso, co_iso]
+
+                cur.execute(query, tuple(params))
+                if cur.fetchone():
+                    cur.execute("ROLLBACK")
+                    raise ValueError("Room is not available for the selected dates.")
+
+            # Recalculate Price
+            new_total = self.calculate_total_price(final_room_id, ci_iso, co_iso)
+            old_total = float(row["total_price"])
+            diff = new_total - old_total
+
+            # Determine Payment Status
+            if is_paid is not None:
+                final_is_paid = 1 if is_paid else 0
+            else:
+                if diff > 0:
+                    # Price increased -> Mark unpaid (balance owed)
+                    final_is_paid = 0
+                else:
+                    # Price decrease or unchanged -> Keep original status
+                    # NOTE: Does not track refunds automatically
+                    final_is_paid = row["is_paid"]
+
+            # Commit Updates
+            cur.execute("""
+                UPDATE reservations
+                SET room_id = ?,
+                    check_in_date = ?,
+                    check_out_date = ?,
+                    num_guests = ?,
+                    total_price = ?,
+                    is_paid = ?
+                WHERE reservation_id = ?
+            """, (final_room_id, ci_iso, co_iso, final_guests, new_total, final_is_paid, reservation_id))
+
+            cur.execute("COMMIT")
+
+            return{
+                "success": True,
+                "reservation_id": reservation_id,
+                "old_price": old_total,
+                "new_price": new_total,
+                "difference": diff,
+                "is_paid": bool(final_is_paid),
+                "message": "Update successful"
+            }
+
+        except Exception as e:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise e
+
+        finally:
+            conn.close()
+
+
 
     def search_reservation(
         self,
