@@ -1,6 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+import os
+import sys
+
+# Ensure repository root is on sys.path so imports from repo root work
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from database_manager import DatabaseManager
 
 BG_APP = "#2C3E50"
