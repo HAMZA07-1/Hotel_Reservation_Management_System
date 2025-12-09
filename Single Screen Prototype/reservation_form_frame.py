@@ -179,7 +179,7 @@ class ReservationFormFrame(tk.Frame):
         # ---------------------------
         today = date.today()
         current_year = today.year
-        years = [current_year, current_year + 1, current_year + 2]
+        years = [current_year, current_year + 1]
 
         # Keep ISO string vars for compatibility (you asked for B)
         self.check_in_var = tk.StringVar()
@@ -248,27 +248,116 @@ class ReservationFormFrame(tk.Frame):
         co_day_cb = ttk.Combobox(reserve_frame, textvariable=self.co_day, width=4, state="readonly")
         co_day_cb.grid(row=2, column=3, sticky="w", padx=(2, 6))
 
-        # Bind traces to update days and keep checkout at least 1 day after checkin
+        # Bind traces to update days and keep checkout at least 1 day after checkin and at most 30
+        MAX_STAY = 30  # days
+
         def on_ci_change(*_):
             update_days(self.ci_year, self.ci_month, self.ci_day, ci_day_cb)
-            # ensure checkout >= checkin + 1 day
+
             try:
                 ci_date = date(self.ci_year.get(), self.ci_month.get(), self.ci_day.get())
+
+                # update checkout selectors
+                update_checkout_dropdowns(ci_date)
+
+                # ensure current checkout is valid after updating dropdown options
+                min_co = ci_date + timedelta(days=1)
+                max_co = ci_date + timedelta(days=30)
+
                 co_date = date(self.co_year.get(), self.co_month.get(), self.co_day.get())
-                if co_date <= ci_date:
-                    new_co = ci_date + timedelta(days=1)
-                    # adjust co component vars (this will trigger co traces)
-                    self.co_year.set(new_co.year)
-                    self.co_month.set(new_co.month)
-                    self.co_day.set(new_co.day)
+
+                if co_date < min_co:
+                    co_date = min_co
+                if co_date > max_co:
+                    co_date = max_co
+
+                self.co_year.set(co_date.year)
+                self.co_month.set(co_date.month)
+                self.co_day.set(co_date.day)
+
                 sync_iso_vars()
+
             except Exception:
                 pass
 
         def on_co_change(*_):
-            update_days(self.co_year, self.co_month, self.co_day, co_day_cb)
-            # If co <= ci, keep but validation will catch if user tries to search
-            sync_iso_vars()
+            try:
+                ci_date = date(self.ci_year.get(), self.ci_month.get(), self.ci_day.get())
+                min_co = ci_date + timedelta(days=1)
+                max_co = ci_date + timedelta(days=30)
+
+                update_checkout_dropdowns(ci_date)
+
+                co_date = date(self.co_year.get(), self.co_month.get(), self.co_day.get())
+
+                if co_date < min_co:
+                    co_date = min_co
+                if co_date > max_co:
+                    co_date = max_co
+
+                self.co_year.set(co_date.year)
+                self.co_month.set(co_date.month)
+                self.co_day.set(co_date.day)
+
+                sync_iso_vars()
+
+            except Exception:
+                pass
+
+        def update_checkout_dropdowns(ci_date):
+            """Update checkout year/month/day dropdown values based on 1–30 day max stay."""
+            min_co = ci_date + timedelta(days=1)
+            max_co = ci_date + timedelta(days=30)
+
+            # --- allowed years ---
+            years = list(range(min_co.year, max_co.year + 1))
+            co_year_cb['values'] = years
+
+            # Ensure year is within allowed range
+            if self.co_year.get() not in years:
+                self.co_year.set(min_co.year)
+
+            selected_year = self.co_year.get()
+
+            # --- allowed months ---
+            if min_co.year == max_co.year:
+                # same year → months are continuous
+                months = list(range(min_co.month, max_co.month + 1))
+            else:
+                if selected_year == min_co.year:
+                    months = list(range(min_co.month, 13))
+                elif selected_year == max_co.year:
+                    months = list(range(1, max_co.month + 1))
+                else:
+                    months = list(range(1, 13))
+
+            co_month_cb['values'] = months
+
+            # Clamp selected month
+            if self.co_month.get() not in months:
+                self.co_month.set(months[0])
+
+            selected_month = self.co_month.get()
+
+            # --- allowed days ---
+            # compute valid day range within the selected month
+            from calendar import monthrange
+
+            month_days = monthrange(selected_year, selected_month)[1]
+            days = list(range(1, month_days + 1))
+
+            # Filter days outside allowed range
+            valid_days = []
+            for d in days:
+                candidate = date(selected_year, selected_month, d)
+                if min_co <= candidate <= max_co:
+                    valid_days.append(d)
+
+            co_day_cb['values'] = valid_days
+
+            # Clamp selected day
+            if self.co_day.get() not in valid_days:
+                self.co_day.set(valid_days[0])
 
         # Attach the traces
         self.ci_year.trace_add("write", on_ci_change)
