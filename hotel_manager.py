@@ -71,6 +71,8 @@ class HotelManager:
 
     MAX_ADVANCE_DAYS = 365
     MAX_STAY_NIGHTS = 30
+    CHECKIN_HOUR = 14
+    CHECKOUT_HOUR = 12
 
     def __init__(self, db: DatabaseManager):
         """Initializes the HotelManager, creating a DatabaseManager instance."""
@@ -876,3 +878,184 @@ class HotelManager:
         query += f" ORDER BY {col_sql} {dir_sql}"
 
         return self.db.execute_query(query, tuple(params))
+
+    def check_in_reservation(self, reservation_id: int, confirm_payment: bool = False) -> dict:
+        """
+        Checks in a guest, strictly enforcing the 2:00 PM check-in policy.
+
+        Logic:
+        - Atomic Transaction: Prevents race conditions.
+        - Status Check: Must be 'Confirmed' or 'Late'.
+        - Time Check: Guests cannot check in before 2:00 PM on their scheduled date.
+        - Payment Rule:
+            - If the reservation is UNPAID, check-in is rejected unless 'confirm_payment' is True.
+            - If 'confirm_payment' is True, the system marks the reservation as Paid.
+        """
+
+        now = datetime.now()
+
+        conn = self.db.connect()
+        cur = conn.cursor()
+
+        try:
+            conn.isolation_level = None
+            cur.execute("BEGIN IMMEDIATE")
+
+            # Retrieve reservation data
+            cur.execute(
+                "SELECT status, check_in_date, room_id, is_paid, total_price FROM reservations WHERE reservation_id = ?",
+                (reservation_id,)
+            )
+            row = cur.fetchone()
+
+            # Validate reservation exists
+            if not row:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Reservation {reservation_id} not found.")
+
+            status, check_in_str, room_id, is_paid, total_price = row
+            check_in_date = datetime.strptime(check_in_str, "%Y-%m-%d").date()
+
+            # Validate status
+            if status == "Checked-in":
+                cur.execute("ROLLBACK")
+                raise ValueError("Reservation is already checked in.")
+            if status not in ("Confirmed", "Late"):
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Cannot check in. Reservation status is '{status}'.")
+
+            # Validate Payment
+            # If currently unpaid, we REQUIRE confirm_payment=True to proceed
+            if is_paid == 0 and not confirm_payment:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Check-in Denied: Payment of ${total_price:.2f} is required.")
+
+            # Validate date (Strict 2:00 PM)
+            earliest_allowed_time = datetime.combine(check_in_date, time(self.CHECKIN_HOUR, 0))
+
+            if now < earliest_allowed_time:
+                cur.execute("ROLLBACK")
+                if now.date() < check_in_date:
+                    msg = f"Too early. Reservation starts on {check_in_str}."
+                else:
+                    # Same day but before 2:00 PM
+                    msg = f"Check-in begins at {self.CHECKIN_HOUR}:00. Current time: {now.strftime('%H:%M')}."
+                raise ValueError(msg)
+
+            # If we reached this line, payment validation passed
+            new_is_paid = 1
+
+            # Execute update
+            cur.execute(
+                "UPDATE reservations SET status = 'Checked-in', is_paid = ? WHERE reservation_id = ?",
+                (new_is_paid, reservation_id)
+            )
+            cur.execute("COMMIT")
+            return {
+                "success": True,
+                "reservation_id": reservation_id,
+                "checked_in_at": now.isoformat(),
+                "payment_settled": bool(new_is_paid),
+                "message": f"Checked in at {now.strftime('%H:%M')}"
+            }
+
+        except Exception as e:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise e
+        finally:
+            conn.close()
+
+    def check_out_reservation(self, reservation_id: int) -> dict:
+        """
+        Completes a reservation, calculating late fees and releasing the room.
+
+        Logic:
+        - Atomic Transaction: Prevents race conditions.
+        - Status Check: Must be 'Checked-in' or 'Late Check-out'.
+        - Late Fee: Applies 50% of one night's price if status is 'Late Check-out'.
+        - Updates status to 'Complete'.
+        - Resets is_paid to 0 if late fee is applied (balance owed).
+
+        Returns:
+            dict: Summary containing success status, fees applied, and final price.
+        """
+
+        conn = self.db.connect()
+        cur = conn.cursor()
+
+        try:
+            conn.isolation_level = None
+            cur.execute("BEGIN IMMEDIATE")
+
+            # Retrieve reservation with room price (for late fee calculation)
+            cur.execute("""
+                SELECT r.status, r.total_price, r.is_paid, rm.price
+                FROM reservations r
+                JOIN rooms rm ON r.room_id = rm.room_id
+                WHERE r.reservation_id = ?
+            """, (reservation_id,))
+            row = cur.fetchone()
+
+            # Validate reservation exists
+            if not row:
+                cur.execute("ROLLBACK")
+                raise ValueError(f"Reservation {reservation_id} not found.")
+
+            status, original_price, is_paid, nightly_rate = row
+
+            # Validate Status
+            if status not in ("Checked-in", "Late Check-out"):
+                cur.execute("ROLLBACK")
+                if status == "Complete":
+                    raise ValueError("Reservation is already checked out.")
+                raise ValueError(f"Cannot check out. Reservation status is '{status}'.")
+
+            # Calculate late fee if applicable
+            late_fee = 0.0
+            if status == "Late Check-out":
+                late_fee = nightly_rate * 0.5  # 50% of one night's price
+
+            # Calculate final price
+            final_price = original_price + late_fee
+
+            # Determine payment status (reset to unpaid if late fee added)
+            new_is_paid = 0 if late_fee > 0 else is_paid
+
+            # Execute update
+            cur.execute("""
+                UPDATE reservations 
+                SET status = 'Complete', total_price = ?, is_paid = ?
+                WHERE reservation_id = ?
+            """, (final_price, new_is_paid, reservation_id))
+
+            cur.execute("COMMIT")
+
+            # Build response message
+            if late_fee > 0:
+                message = f"Check-out complete. Late fee of ${late_fee:.2f} applied."
+            else:
+                message = "Check-out complete."
+
+            return {
+                "success": True,
+                "reservation_id": reservation_id,
+                "status": "Complete",
+                "original_price": original_price,
+                "late_fee": late_fee,
+                "final_price": final_price,
+                "is_paid": bool(new_is_paid),
+                "message": message
+            }
+
+        except Exception as e:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise e
+
+        finally:
+            conn.close()
