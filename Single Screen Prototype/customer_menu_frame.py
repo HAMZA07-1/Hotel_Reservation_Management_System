@@ -1,5 +1,8 @@
 import os
 import sys
+import subprocess
+from pathlib import Path
+from tkinter import messagebox
 from tkinter import ttk
 
 # Ensure repository root is on sys.path so imports from repo root work
@@ -29,81 +32,65 @@ FG_COLOR = "#ECF0F1"
 #---------------------------------------
 # APP INITIALIZATION / PROGRAM START
 #---------------------------------------
-class HotelApp(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.db = DatabaseManager()
+class CustomerMenuFrame(tk.Frame):
+    def __init__(self, parent, controller=None):
+        """Embed-able CustomerMenuFrame. Accepts (parent, controller) like other frames.
+
+        If `controller` is not provided, this frame will act as its own controller
+        for internal navigation (suitable for previews).
+        """
+        super().__init__(parent, bg=BG_COLOR)
+
+        # Controller pattern: prefer provided controller, DON'T fall back to self
+        # (self doesn't have show_splash, show_frame, etc.)
+        self.controller = controller
+
+        # Use the global db instance
+        self.db = db
         self.hotel = HotelManager(self.db)
-        #Allows DatabaseManager to call HotelManager methods
+        # Allow DatabaseManager to reference HotelManager if needed
         self.db.hotel_manager = self.hotel
 
-        # Window properties
-        self.title("Hotel Management")
-
-        # Set desired size
-        app_w, app_h = 1920, 1080
-        self.geometry(f"{app_w}x{app_h}")
-        self.configure(bg=BG_COLOR)
-        self.resizable(False, False)
-
-        # --- Center the main window ---
-        self.update_idletasks()  # ensure geometry info is ready
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-
-        x = (screen_w // 2) - (app_w // 2)
-        y = (screen_h // 2) - (app_h // 2)
-
-        self.geometry(f"{app_w}x{app_h}+{x}+{y}")
-
-
-        #Current User logged in info
+        # Current User logged in info
         self.current_user_id = None
         self.current_user_role = None
         self.current_user_name = None
 
-        #Expandable root grid
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
-
-        # Container for all "screens"
+        # Container for internal frames (keeps same pattern as HotelApp)
         self.container = tk.Frame(self, bg=BG_COLOR)
-        self.container.grid(row=0, column=0, sticky="nsew")
-
-        # Make container expand
+        self.container.pack(fill="both", expand=True)
         self.container.grid_rowconfigure(0, weight=1)
         self.container.grid_columnconfigure(0, weight=1)
 
-        self.frames = {}  # name -> frame instance
+        self.frames = {}
+        # Screens created inside this container
+        # Pass the actual controller (not self) to child frames
+        self.frames["login_screen"] = LoginFrame(self.container, self.controller or self)
+        self.frames["main_menu"] = MainMenuFrame(self.container, self.controller or self)
+        self.frames["new_reservation"] = ReservationFormFrame(self.container, self.controller or self)
 
-        #Screens made here:
-        self.frames["login_screen"] = LoginFrame(self.container, self)
-        self.frames["main_menu"] = MainMenuFrame(self.container, self)
-        self.frames["new_reservation"] = ReservationFormFrame(self.container, self)
-        self.frames["rooms_status"] = RoomStatusFrame(self.container, self)
-        self.frames["booking_records"] = BookingRecordsFrame(self.container,self)
-        self.frames["metrics"] = MetricsFrame(self.container, self)
-        self.frames["employees"] = EmployeeProfileFrame(self.container, self)
-
-        # Layout screens (stacked, we raise the one we want)
         for frame in self.frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
 
-        #First Frame shown on program start
+        # Show main menu initially
         self.show_frame("main_menu")
 
-    #def to show new screen
     def show_frame(self, name):
-        frame = self.frames[name]
+        frame = self.frames.get(name)
+        if frame is None:
+            return
         frame.tkraise()
         if hasattr(frame, "refresh"):
-            frame.refresh()
+            try:
+                frame.refresh()
+            except Exception:
+                pass
 
 #-----------------------------
 # MAIN MENU
 #-----------------------------
 class MainMenuFrame(tk.Frame):
-    def __init__(self, parent, controller: "HotelApp"):
+    def __init__(self, parent, controller):
         super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
         self.db = db
@@ -157,51 +144,6 @@ class MainMenuFrame(tk.Frame):
         )
         view_rooms_btn.pack(pady=10)
 
-        # Booking Records Button
-        booking_records_btn = tk.Button(
-            content,
-            text="Booking Records",
-            font=("TkDefaultFont", 16),
-            width=20,
-            command=lambda: controller.show_frame("booking_records"),
-            bg="#34495E",
-            fg=FG_COLOR,
-            activebackground="#3D566E",
-            activeforeground=FG_COLOR,
-            relief="flat"
-        )
-        booking_records_btn.pack(pady=10)
-
-        # Metrics Button  (we keep a reference on self)
-        self.metrics_btn = tk.Button(
-            content,
-            text="Metrics",
-            font=("TkDefaultFont", 16),
-            width=20,
-            command=lambda: controller.show_frame("metrics"),
-            bg="#34495E",
-            fg=FG_COLOR,
-            activebackground="#3D566E",
-            activeforeground=FG_COLOR,
-            relief="flat"
-        )
-        self.metrics_btn.pack(pady=10)
-
-        # Employees Button (also keep reference)
-        self.employees_btn = tk.Button(
-            content,
-            text="Employees",
-            font=("TkDefaultFont", 16),
-            width=20,
-            command=lambda: controller.show_frame("employees"),
-            bg="#34495E",
-            fg=FG_COLOR,
-            activebackground="#3D566E",
-            activeforeground=FG_COLOR,
-            relief="flat"
-        )
-        self.employees_btn.pack(pady=10)
-
         # Logout Button
         logout_btn = tk.Button(
             content,
@@ -219,9 +161,30 @@ class MainMenuFrame(tk.Frame):
 
     def logout(self):
         #Clear current user and go back to login screen.
+        print("[DEBUG] logout() called")
         self.controller.current_user_id = None
         self.controller.current_user_role = None
-        self.controller.show_frame("login_screen")
+        
+        # If the controller can show the splash, prefer that (embedded splash flow)
+        if hasattr(self.controller, "show_splash"):
+            print("[DEBUG] Controller has show_splash, calling it...")
+            try:
+                self.controller.show_splash()
+                print("[DEBUG] show_splash completed successfully")
+                return
+            except Exception as e:
+                print(f"[DEBUG] show_splash failed: {e}")
+                pass
+        else:
+            print("[DEBUG] Controller does NOT have show_splash attribute")
+        
+        # Fallback: close the top-level window
+        print("[DEBUG] Using fallback: destroying top-level window")
+        try:
+            top = self.winfo_toplevel()
+            top.destroy()
+        except Exception:
+            pass
 
     def refresh(self):
         #updates room availability based on reservation date
@@ -242,20 +205,23 @@ class MainMenuFrame(tk.Frame):
         # use pack_forget to hide and pack to show
         # But we only want to pack if they’re not already visible.
 
-        if role == "Manager":
-            # Manager sees both
-            if not self.metrics_btn.winfo_ismapped():
-                self.metrics_btn.pack(pady=10)
-            if not self.employees_btn.winfo_ismapped():
-                self.employees_btn.pack(pady=10)
-        elif role == "Employee":
-            # Employees cannot see these
-            if self.metrics_btn.winfo_ismapped():
-                self.metrics_btn.pack_forget()
-            if self.employees_btn.winfo_ismapped():
-                self.employees_btn.pack_forget()
-
+    def launch_employee_app(self):
+        """Launch the staff app (`main.py`) in a new process."""
+        # main.py is expected in the same folder (Single Screen Prototype/main.py)
+        main_path = Path(__file__).resolve().parent / "main.py"
+        if not main_path.exists():
+            messagebox.showerror("Not found", f"Could not find staff app at:\n{main_path}")
+            return
+        try:
+            subprocess.Popen([sys.executable, str(main_path)])
+        except Exception as e:
+            messagebox.showerror("Launch failed", f"Failed to start staff app:\n{e}")
+            return
 
 if __name__ == "__main__":
-    app = HotelApp()
-    app.mainloop()
+    root = tk.Tk()
+    root.title("Customer Menu Preview")
+    root.geometry("900x600")
+    app = CustomerMenuFrame(root)
+    app.pack(fill="both", expand=True)
+    root.mainloop()
