@@ -47,6 +47,7 @@ Notes:
 import sqlite3
 from pathlib import Path
 from datetime import date, datetime, time, timedelta
+import random
 
 
 class DatabaseManager:
@@ -572,6 +573,216 @@ class DatabaseManager:
                 conn.close()
 
         return results
+
+    # ---------------------------------------------------
+    # Employee Methods
+    # ---------------------------------------------------
+    def search_employees(self, emp_id=None, name=None, role=None):
+        """
+        Returns a list of (employee_id, first_name, last_name, role)
+        matching the given criteria.
+        """
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            query = """
+                SELECT employee_id, first_name, last_name, role
+                FROM employees
+                WHERE 1=1
+            """
+            params = []
+
+            if emp_id:
+                query += " AND employee_id = ?"
+                params.append(emp_id)
+
+            if name:
+                query += " AND (first_name || ' ' || last_name) LIKE ?"
+                params.append(f"%{name}%")
+
+            if role:
+                query += " AND role = ?"
+                params.append(role)
+
+            query += " ORDER BY last_name ASC, first_name ASC"
+
+            cur.execute(query, params)
+            return cur.fetchall()
+
+        except Exception as e:
+            print("[DB ERROR] search_employees:", e)
+            return []
+
+        finally:
+            conn.close()
+
+    def load_all_employees(self, role=None):
+        """
+        Returns all employees sorted by Manager first, then Employee,
+        all ordered by last name then first name.
+        """
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            query = """
+                SELECT employee_id, first_name, last_name, role
+                FROM employees
+                WHERE 1=1
+            """
+            params = []
+
+            if role:
+                query += " AND role = ?"
+                params.append(role)
+
+            query += """
+                ORDER BY
+                    CASE role WHEN 'Manager' THEN 0 ELSE 1 END,
+                    last_name ASC, first_name ASC
+            """
+
+            cur.execute(query, params)
+            return cur.fetchall()
+
+        except Exception as e:
+            print("[DB ERROR] load_all_employees:", e)
+            return []
+
+        finally:
+            conn.close()
+
+
+
+    def get_employee_details(self, employee_id):
+        """
+        Returns a single employee record as a tuple:
+        (
+            employee_id, employee_password,
+            first_name, last_name, role,
+            phone_number, address_line1, address_line2,
+            city, state, postal_code
+        )
+        """
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT employee_id, employee_password, first_name, last_name, role,
+                       phone_number, address_line1, address_line2,
+                       city, state, postal_code
+                FROM employees
+                WHERE employee_id = ?
+            """, (employee_id,))
+
+            return cur.fetchone()
+
+        except Exception as e:
+            print("[DB ERROR] get_employee_details:", e)
+            return None
+
+        finally:
+            conn.close()
+
+    def create_employee(self, employee_id, password, first, last, role,
+                        phone, addr1, addr2, city, state, postal):
+        """Insert a new employee into the database."""
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            cur.execute("""
+                INSERT INTO employees
+                    (employee_id, employee_password, first_name, last_name, role,
+                     phone_number, address_line1, address_line2, city, state, postal_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                employee_id, password, first, last, role,
+                phone, addr1, addr2, city, state, postal
+            ))
+
+            conn.commit()
+            return True
+
+        except Exception as e:
+            print("[DB ERROR] create_employee:", e)
+            return False
+
+        finally:
+            conn.close()
+
+    def update_employee(self, employee_id, password, first, last, role,
+                        phone, addr1, addr2, city, state, postal):
+        """Update employee record."""
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            cur.execute("""
+                UPDATE employees
+                SET employee_password = ?,
+                    first_name = ?,
+                    last_name = ?,
+                    role = ?,
+                    phone_number = ?,
+                    address_line1 = ?,
+                    address_line2 = ?,
+                    city = ?,
+                    state = ?,
+                    postal_code = ?
+                WHERE employee_id = ?
+            """, (
+                password, first, last, role,
+                phone, addr1, addr2, city, state, postal,
+                employee_id
+            ))
+
+            conn.commit()
+            return True
+
+        except Exception as e:
+            print("[DB ERROR] update_employee:", e)
+            return False
+
+        finally:
+            conn.close()
+
+    def delete_employee(self, employee_id):
+        """Delete employee by ID."""
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            cur.execute("DELETE FROM employees WHERE employee_id = ?", (employee_id,))
+            conn.commit()
+
+            return True
+
+        except Exception as e:
+            print("[DB ERROR] delete_employee:", e)
+            return False
+
+        finally:
+            conn.close()
+
+
+
+    def generate_unique_employee_id(self):
+        """Generate a unique 5-digit ID (10000–99999)."""
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+
+            while True:
+                new_id = random.randint(10000, 99999)
+                cur.execute("SELECT 1 FROM employees WHERE employee_id = ?", (new_id,))
+                if not cur.fetchone():
+                    return new_id
+
+        finally:
+            conn.close()
 
     #------------------------------------------
     # DAILY RESERVATION START UP METHODS BELOW
