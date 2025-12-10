@@ -6,7 +6,7 @@ from tkinter import ttk
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
-    
+
 from database_manager import DatabaseManager
 from config import DB_PATH
 import tkinter as tk
@@ -17,6 +17,7 @@ from metrics_frame import MetricsFrame
 from employee_frame import EmployeeProfileFrame
 from reservation_form_frame import ReservationFormFrame
 from hotel_manager import HotelManager
+from email_receipt_sender import EmailReceiptSender
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
@@ -36,6 +37,15 @@ class HotelApp(tk.Tk):
         self.hotel = HotelManager(self.db)
         #Allows DatabaseManager to call HotelManager methods
         self.db.hotel_manager = self.hotel
+
+        #Email receipt system
+        self.email_sender = EmailReceiptSender(
+            smtp_server="smtp.gmail.com",
+            smtp_port=587,
+            username="roomservicecoders@gmail.com",
+            password="xmtz bioj edqp prnp",
+            sender_name="RSC Hotels"
+        )
 
         # Window properties
         self.title("Hotel Management")

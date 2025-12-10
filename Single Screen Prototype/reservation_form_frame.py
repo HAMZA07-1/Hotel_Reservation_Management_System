@@ -276,6 +276,7 @@ class ReservationFormFrame(tk.Frame):
                 self.co_day.set(co_date.day)
 
                 sync_iso_vars()
+                self.update_price_breakdown()
 
             except Exception:
                 pass
@@ -300,6 +301,7 @@ class ReservationFormFrame(tk.Frame):
                 self.co_day.set(co_date.day)
 
                 sync_iso_vars()
+                self.update_price_breakdown()
 
             except Exception:
                 pass
@@ -407,6 +409,39 @@ class ReservationFormFrame(tk.Frame):
             bg=PANEL_BG,
             fg=FG_COLOR,
         ).grid(row=5, column=1, columnspan=3, sticky="w", pady=(10,6))
+
+        # --- Price Breakdown Variables ---
+        self.price_per_night_var = tk.StringVar(value="")
+        self.price_nights_var = tk.StringVar(value="")
+        self.price_subtotal_var = tk.StringVar(value="")
+        self.price_tax_var = tk.StringVar(value="")
+        self.price_total_var = tk.StringVar(value="")
+
+        # --- Price Breakdown Display ---
+        tk.Label(reserve_frame, text="Per Night:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=6, column=0, sticky="e")
+        tk.Label(reserve_frame, textvariable=self.price_per_night_var, bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=6, column=1, sticky="w")
+
+        tk.Label(reserve_frame, text="Nights:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=7, column=0, sticky="e")
+        tk.Label(reserve_frame, textvariable=self.price_nights_var, bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=7, column=1, sticky="w")
+
+        tk.Label(reserve_frame, text="Subtotal:", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=8, column=0, sticky="e")
+        tk.Label(reserve_frame, textvariable=self.price_subtotal_var, bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=8, column=1, sticky="w")
+
+        tk.Label(reserve_frame, text="Tax (14.5%):", bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=9, column=0, sticky="e")
+        tk.Label(reserve_frame, textvariable=self.price_tax_var, bg=PANEL_BG, fg=FG_COLOR) \
+            .grid(row=9, column=1, sticky="w")
+
+        tk.Label(reserve_frame, text="Grand Total:", bg=PANEL_BG, fg=FG_COLOR, font=("Arial", 11, "bold")) \
+            .grid(row=10, column=0, sticky="e", pady=(12, 0))
+        tk.Label(reserve_frame, textvariable=self.price_total_var, bg=PANEL_BG, fg=FG_COLOR, font=("Arial", 11, "bold")) \
+            .grid(row=10, column=1, sticky="w", pady=(12, 0))
 
         # ============================================================
         # SECTION 3 — Payment Details (RIGHT)
@@ -523,6 +558,10 @@ class ReservationFormFrame(tk.Frame):
         self.postal_var.set("")
         self.num_guests_var.set(1)
         self.selected_room_var.set("No room selected")
+        self.cardholder_var.set("")
+        self.card_number_var.set("")
+        self.card_exp_var.set("")
+        self.card_cvv_var.set("")
 
         # reset dates to today / tomorrow
         today = date.today()
@@ -539,6 +578,9 @@ class ReservationFormFrame(tk.Frame):
     def set_selected_room(self, room_id, room_number):
         self.selected_room_id = room_id
         self.selected_room_var.set(f"Room {room_number}")
+
+        # Update pricing when a room is selected
+        self.update_price_breakdown()
 
     # --------------------------------------------------------------------
     def open_room_search_popup(self):
@@ -578,6 +620,44 @@ class ReservationFormFrame(tk.Frame):
         # Pass Python date objects to the popup (DB layer will convert them to strings as needed)
         RoomSearchPopup(self, self.controller, check_in_date, check_out_date, num_guests, include_smoking)
 
+    def update_price_breakdown(self):
+        """Recalculate and display price breakdown when room or dates change."""
+        try:
+            # Must have a selected room first
+            if not hasattr(self, "selected_room_id"):
+                return
+
+            room_id = self.selected_room_id
+            nightly_price = self.controller.db.get_room_price(room_id)
+
+            # Parse check-in/out ISO strings
+            d1 = date(self.ci_year.get(), self.ci_month.get(), self.ci_day.get())
+            d2 = date(self.co_year.get(), self.co_month.get(), self.co_day.get())
+
+            nights = (d2 - d1).days
+            if nights <= 0:
+                return
+
+            subtotal = nightly_price * nights
+            tax = subtotal * 0.145
+            total = subtotal + tax
+
+            self.price_per_night_var.set(f"${nightly_price:,.2f}")
+            self.price_nights_var.set(f"{nights}")
+            self.price_subtotal_var.set(f"${subtotal:,.2f}")
+            self.price_tax_var.set(f"${tax:,.2f}")
+            self.price_total_var.set(f"${total:,.2f}")
+
+        except Exception as e:
+            print("Error computing price breakdown:", e)
+
+    def get_grand_total_amount(self):
+        """Returns the grand total as a numeric float from the price_total_var."""
+        val = self.price_total_var.get().replace("$", "").replace(",", "").strip()
+        try:
+            return float(val)
+        except:
+            return 0.0
 
     # -------------------------------------------------------------------
     def submit_reservation(self):
@@ -715,6 +795,30 @@ class ReservationFormFrame(tk.Frame):
                 status="Confirmed",
                 is_paid=self.is_paid_var.get(),
             )
+
+            # -------- Send Email Receipt --------
+            try:
+                room_number = self.controller.db.get_room_number(room_id)
+                amount = self.controller.db.get_room_price(room_id) * nights
+
+                sent = self.controller.email_sender.send_reservation_receipt(
+                            guest_email=email,
+                            guest_name=f"{first} {last}",
+                            reservation_id=reservation_id,
+                            room_number=room_number,
+                            check_in=check_in,
+                            check_out=check_out,
+                            nights=nights,
+                            amount = self.get_grand_total_amount(),
+                            is_paid=False
+                        )
+
+
+                if not sent:
+                    print("Warning: Receipt email failed to send.")
+
+            except Exception as e:
+                print("Email error:", e)
 
             messagebox.showinfo(
                 "Reservation Created",
@@ -910,6 +1014,29 @@ class ReservationFormFrame(tk.Frame):
             status="Confirmed",
             is_paid=self.is_paid_var.get()
         )
+
+        # -------- Send Email Receipt --------
+        try:
+            room_number = self.controller.db.get_room_number(room_id)
+            amount = self.controller.db.get_room_price(room_id) * nights
+
+            sent = self.controller.email_sender.send_reservation_receipt(
+                guest_email=email,
+                guest_name=f"{first} {last}",
+                reservation_id=reservation_id,
+                room_number=room_number,
+                check_in=check_in,
+                check_out=check_out,
+                nights=nights,
+                amount = self.get_grand_total_amount(),
+                is_paid=True
+            )
+
+            if not sent:
+                print("Warning: Receipt email failed to send.")
+
+        except Exception as e:
+            print("Email error:", e)
 
         messagebox.showinfo("Reservation Created", f"Reservation #{reservation_id} created successfully!")
         self.controller.show_frame("main_menu")

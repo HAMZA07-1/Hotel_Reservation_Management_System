@@ -63,6 +63,7 @@ Algorithms:
 """
 from datetime import datetime, time, timedelta
 import sqlite3
+import random
 from typing import Optional, List, Union
 from database_manager import DatabaseManager
 
@@ -267,42 +268,48 @@ class HotelManager:
         final_sql = " \n".join(sql_parts)
         return self.db.execute_query(final_sql, tuple(params))
 
-
     def calculate_total_price(self, room_id: int, check_in: str, check_out: str) -> float:
-        """Calculates the total price for a stay based on the room's price and number of nights."""
+        """Calculates the total price for a stay based on the room's price, nights, and tax."""
         ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
         room = self.db.get_room(room_id=room_id)
         if room is None:
             raise ValueError("Room does not exist")
-        return float(room["price"]) * nights
+
+        base_price = float(room["price"]) * nights
+        tax_rate = 0.145
+        total_with_tax = base_price * (1 + tax_rate)
+        return total_with_tax
 
 
     def reserve_room(
-        self,
-        guest_id: int,
-        room_id: int,
-        check_in: str,
-        check_out: str,
-        num_guests: int = None,
-        status: str = "Confirmed",
-        is_paid: int = None) -> int: #returns new reservation id
+            self,
+            guest_id: int,
+            room_id: int,
+            check_in: str,
+            check_out: str,
+            num_guests: int = None,
+            status: str = "Confirmed",
+            is_paid: int = None
+    ) -> int:
 
         """Creates a new reservation in the database with transactional safety."""
+
         # Date parsing and initial validation
         ci_iso, co_iso, nights = self._parse_dates(check_in, check_out)
 
         if nights > self.MAX_STAY_NIGHTS:
-            raise ValueError(f"Stay duration ({nights} nights) exceeds maximum allowed ({self.MAX_STAY_NIGHTS} nights).")
+            raise ValueError(
+                f"Stay duration ({nights} nights) exceeds maximum allowed ({self.MAX_STAY_NIGHTS} nights).")
 
         today = datetime.now().date()
         ci_date_obj = datetime.strptime(ci_iso, "%Y-%m-%d").date()
         if (ci_date_obj - today).days > self.MAX_ADVANCE_DAYS:
             raise ValueError(f"Check-in date cannot be more than {self.MAX_ADVANCE_DAYS} days in the future.")
 
-        if not self.db.guest_exists(guest_id = guest_id):
+        if not self.db.guest_exists(guest_id=guest_id):
             raise ValueError("Guest does not exist.")
 
-        if not self.db.room_exists(room_id = room_id):
+        if not self.db.room_exists(room_id=room_id):
             raise ValueError("Room does not exist.")
 
         if num_guests is not None and num_guests < 1:
@@ -320,8 +327,9 @@ class HotelManager:
 
         try:
             conn.isolation_level = None
-            cur.execute("BEGIN IMMEDIATE") #Prevent a race condition
+            cur.execute("BEGIN IMMEDIATE")
 
+            # Check availability
             occ = DatabaseManager.OCCUPIED_STATUSES
             ph = ", ".join(["?"] * len(occ))
             cur.execute(
@@ -332,32 +340,44 @@ class HotelManager:
                         AND status IN ({ph})
                         AND (check_out_date > ? AND check_in_date < ?)
                     LIMIT 1
-                    """,
+                """,
                 (room_id, *occ, ci_iso, co_iso),
             )
 
             if cur.fetchone():
                 cur.execute("ROLLBACK")
-                raise ValueError("Room is no longer available for the selected dates")
+                raise ValueError("Room is no longer available for the selected dates.")
 
+            # -----------------------------
+            # Generate unique 6-digit ID
+            # -----------------------------
+            reservation_id = random.randint(100000, 999999)
+
+            # Ensure uniqueness (very fast, tiny table)
+            cur.execute("SELECT 1 FROM reservations WHERE reservation_id = ?", (reservation_id,))
+            while cur.fetchone():
+                reservation_id = random.randint(100000, 999999)
+
+            # Insert reservation with custom ID
             cur.execute(
                 """
-                INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status, is_paid)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO reservations 
+                    (reservation_id, guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, status, is_paid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (guest_id, room_id, ci_iso, co_iso, num_guests, total_price, status, is_paid),
+                (reservation_id, guest_id, room_id, ci_iso, co_iso, num_guests, total_price, status, is_paid),
             )
 
-            reservation_id = cur.lastrowid
+            # OPTIONAL: mark room as unavailable
+            cur.execute("UPDATE rooms SET is_available = 0 WHERE room_id = ?", (room_id,))
+
             cur.execute("COMMIT")
             return reservation_id
 
         except Exception:
-            # On any error, ensure the transaction is rolled back.(undoes all changes since BEGIN IMMEDIATE)
             try:
                 cur.execute("ROLLBACK")
-            except Exception:
-                # Ignore rollback errors
+            except:
                 pass
             raise
 

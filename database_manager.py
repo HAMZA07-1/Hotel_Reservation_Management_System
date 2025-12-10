@@ -266,6 +266,20 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def get_room_number(self, room_id):
+        """Return the room_number for the given room_id."""
+        conn = self.connect()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT room_number
+            FROM rooms
+            WHERE room_id = ?
+        """, (room_id,))
+
+        row = cur.fetchone()
+        return row[0] if row else None
+
     def get_rooms_filtered(self, room_number="", available=None,
                            smoking=None, capacity=None):
         conn = self.connect()
