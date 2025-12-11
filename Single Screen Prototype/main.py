@@ -19,6 +19,8 @@ from employee_frame import EmployeeProfileFrame
 from reservation_form_frame import ReservationFormFrame
 from hotel_manager import HotelManager
 from email_receipt_sender import EmailReceiptSender
+from customer_menu_frame import CustomerMenuFrame
+from customer_window import SplashScreen
 
 
 print("[Debug GUI] Using database at:", DB_PATH)
@@ -95,13 +97,15 @@ class HotelApp(tk.Tk):
         self.frames["booking_records"] = BookingRecordsFrame(self.container,self)
         self.frames["metrics"] = MetricsFrame(self.container, self)
         self.frames["employees"] = EmployeeProfileFrame(self.container, self)
+        self.frames["customer_menu"] = CustomerMenuFrame(self.container, self)
+        self.frames["splash_screen"] = SplashScreen(self.container, self)
 
         # Layout screens (stacked, we raise the one we want)
         for frame in self.frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
 
         #First Frame shown on program start
-        self.show_frame("main_menu")
+        self.show_frame("splash_screen")
 
     #def to show new screen
     def show_frame(self, name):
