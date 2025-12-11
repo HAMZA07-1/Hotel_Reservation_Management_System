@@ -356,6 +356,113 @@ class DatabaseManager:
     # ---------------------------------------------------
     # Reservation Methods
     # ---------------------------------------------------
+    def reservation_exists(self, reservation_id):
+        "Check if a reservation with the ID exists already."
+        conn = self.connect()
+        cur = conn.cursor()
+        try: 
+            cur.execute(
+                "Select 1 from reservations where reservation_id = ? Limit 1",
+                (reservation_id,)
+            )
+            result = cur.fetchone()
+            return result is not None
+        finally:
+            conn.close()
+
+
+    def validate_reservation_exists(self, reservation_id: int) -> bool:
+        return self.reservation_exists(reservation_id)
+    
+    def get_guest_reservations(self, email : str):
+        """
+        Return all reservations for a guest by email (case insensitive)
+        Each row includes: 
+        all reservation columns, guest first_name, last_name, room number
+        """
+        conn = self.connect()
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT
+                    r.*,
+                    g.first_name,
+                    g.last_name,
+                    g.email,
+                    rm.room_number
+                FROM reservations r
+                JOIN guests g ON r.guest_id = g.guest_id
+                JOIN rooms rm ON r.room_id = rm.room_id
+                WHERE LOWER(g.email) = LOWER(?)
+                ORDER BY r.check_in_date
+                """,
+                (email.strip(),)
+            )
+            return cur.fetchall()
+        finally: 
+            conn.close()
+
+    def get_all_rooms_status(self, target_date: str):
+        """
+        Return status of all rooms for a given date (YYYY-MM-DD)
+        Each item is a dict: 
+        {
+            "room_id": int,
+            "room_number": int,
+            "room_type": str,
+            "smoking": int,
+            "capacity": int,
+            "price": float,
+            "is_available": bool
+        }
+        """
+        conn = self.connect()
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                Select room_id, room_number, room_type, smoking, capacity, price
+                From rooms
+                """
+            )
+            rooms = cur.fetchall()
+            results = []
+            
+            for room in rooms: 
+                room_id = room["room_id"]
+
+                #Check if there is any overlapping reservations
+                cur.execute(
+                    """
+                    Select 1
+                    From reservations 
+                    Where room_id = ?
+                      And status != 'Cancelled'
+                      And check_in_date <= ?
+                      And check_out_date > ?
+                    Limit 1
+                    """, 
+                    (room_id, target_date, target_date)
+                )
+                is_taken = cur.fetchone() is not None
+                results.append(
+                    {
+                        "room_id": room["room_id"],
+                        "room_number": room["room_number"],
+                        "room_type": room["room_type"],
+                        "smoking": room["smoking"],
+                        "capacity": room["capacity"],
+                        "price": room["price"],
+                        "is_available": not is_taken,
+                    }
+                )
+            return results
+        finally: 
+            conn.close()
+
 
     def cancel_reservation(self, reservation_id: int, guest_id: int) -> bool:
         conn = self.connect()
@@ -897,3 +1004,79 @@ class DatabaseManager:
                     print("[Warning] HotelManager not linked to DatabaseManager.")
 
         conn.close()
+
+    def get_manager_metrics(self):
+        """
+        Return basic metrcis for manager dashboard as a dict: 
+        - total rooms
+        - available_rooms_today
+        - active_reservatins (Confimred + Checked-in)
+        -cancelled reservations
+        - revenue (sum of total rice for non cancelled reservations)
+        
+        """
+        conn = self.connect()
+        cur = conn.cursor()
+        try:
+            # 1) Total Rooms
+            cur.execute("Select Count(*) From rooms")
+            total_rooms = cur.fetchone()[0] or 0
+
+            # 2) Rooms Available Today
+            today = date.today().isoformat()
+            cur.execute(
+                """
+                Select Count(*)
+                From rooms rm
+                Where Not Exists(
+                Select 1
+                From reservations r
+                Where r.room_id = rm.room_id
+                    And r.status != 'Cancelled'
+                    And r.check_in_date <= ?
+                    And r.check_out_date > ?
+                )
+                """,
+                (today, today)
+            )
+            available_rooms_today = cur.fetchone()[0] or 0
+
+            # 3) Active reservations (Confirmed + Checked-in)
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM reservations
+                WHERE status IN ('Confirmed', 'Checked-in')
+                """
+            )
+            active_reservations = cur.fetchone()[0] or 0
+
+            # 4) Cancelled Reservations
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM reservations
+                WHERE status = 'Cancelled'
+                """
+            )
+            cancelled_reservations = cur.fetchone()[0] or 0
+
+            # 5) Revenue
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(total_price), 0)
+                FROM reservations
+                WHERE status != 'Cancelled'
+                """
+            )
+            revenue = cur.fetchone()[0] or 0.0
+
+            return {
+                "total_rooms": total_rooms,
+                "available_rooms_today": available_rooms_today,
+                "active_reservations": active_reservations,
+                "cancelled_reservations": cancelled_reservations,
+                "revenue": revenue,
+            }
+        finally:
+            conn.close()

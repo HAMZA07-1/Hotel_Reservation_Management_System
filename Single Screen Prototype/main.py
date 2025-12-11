@@ -7,6 +7,7 @@ repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
+from reservation_lookup_window import open_reservation_lookup_window
 from database_manager import DatabaseManager
 from config import DB_PATH
 import tkinter as tk
@@ -211,6 +212,21 @@ class MainMenuFrame(tk.Frame):
             relief="flat"
         )
         self.employees_btn.pack(pady=10)
+        
+        # Reservation lookup button 
+        customer_lookup_btn = tk.Button(
+            content, 
+            text="Reservation Lookup",
+            font=("TkDefaultFont", 16),
+            width=20, 
+            command=lambda: open_reservation_lookup_window(controller),
+            bg="#34495E",
+            fg=FG_COLOR,
+            activebackground="#3D566E",
+            activeforeground=FG_COLOR,
+            relief="flat"
+        )
+        customer_lookup_btn.pack(pady=10)
 
         # Logout Button
         logout_btn = tk.Button(
