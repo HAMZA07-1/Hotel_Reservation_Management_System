@@ -10,10 +10,12 @@ class RoomStatusFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
         super().__init__(parent, bg=BG_COLOR)
         self.controller = controller
+        self.sort_column = None
+        self.sort_reverse = False
 
         # State
         self.current_page = 1
-        self.rows_per_page = 29
+        self.rows_per_page = 27
         self.result_rows: List[Tuple] = []
         self.columns = (
             "edit",
@@ -152,7 +154,7 @@ class RoomStatusFrame(tk.Frame):
         # headings & column widths
         labels = ["Edit", "Room ID", "Room Number", "Room Type", "Smoking", "Capacity", "Price", "Available"]
         for col, label in zip(self.columns, labels):
-            self.tree.heading(col, text=label)
+            self.tree.heading(col, text=label, command=lambda c=col: self.sort_by_column(c))
             if col == "edit":
                 self.tree.column(col, width=80, anchor="center", stretch=False)
             elif col == "room_type":
@@ -281,6 +283,43 @@ class RoomStatusFrame(tk.Frame):
             messagebox.showerror("Database Error", f"An error occurred: {e}")
             self.result_rows = []
 
+        self.current_page = 1
+        self.update_page()
+
+    def sort_by_column(self, col_name):
+        """Sorts the result_rows list by the selected column and refreshes the page."""
+
+        # Determine index in result_rows tuples
+        try:
+            col_index = self.columns.index(col_name)
+        except ValueError:
+            return  # invalid column
+
+        # Toggle direction if same column clicked
+        if self.sort_column == col_name:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col_name
+            self.sort_reverse = False
+
+        # Sort the data
+        try:
+            self.result_rows.sort(
+                key=lambda row: (float(row[col_index])
+                                 if isinstance(row[col_index], (int, float, str)) and str(row[col_index]).replace('.',
+                                                                                                                  '',
+                                                                                                                  1).isdigit()
+                                 else row[col_index]),
+                reverse=self.sort_reverse
+            )
+        except Exception:
+            # Fallback for non-numeric columns
+            self.result_rows.sort(
+                key=lambda row: row[col_index],
+                reverse=self.sort_reverse
+            )
+
+        # Refresh page 1 after sorting
         self.current_page = 1
         self.update_page()
 

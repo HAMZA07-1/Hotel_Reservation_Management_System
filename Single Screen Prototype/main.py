@@ -57,7 +57,7 @@ class HotelApp(tk.Tk):
         app_w, app_h = 1920, 1080
         self.geometry(f"{app_w}x{app_h}")
         self.configure(bg=BG_COLOR)
-        self.resizable(False, False)
+        #self.resizable(False, False)
 
         # --- Center the main window ---
         self.update_idletasks()  # ensure geometry info is ready
@@ -105,7 +105,7 @@ class HotelApp(tk.Tk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         #First Frame shown on program start
-        self.show_frame("splash_screen")
+        self.show_frame("login_screen")
 
     #def to show new screen
     def show_frame(self, name):
@@ -190,7 +190,7 @@ class MainMenuFrame(tk.Frame):
         # Metrics Button  (we keep a reference on self)
         self.metrics_btn = tk.Button(
             content,
-            text="Metrics",
+            text="Metrics (WIP)",
             font=("TkDefaultFont", 16),
             width=20,
             command=lambda: controller.show_frame("metrics"),
@@ -217,7 +217,7 @@ class MainMenuFrame(tk.Frame):
         )
         self.employees_btn.pack(pady=10)
         
-        # Reservation lookup button 
+        """"# Reservation lookup button 
         customer_lookup_btn = tk.Button(
             content, 
             text="Reservation Lookup",
@@ -230,7 +230,7 @@ class MainMenuFrame(tk.Frame):
             activeforeground=FG_COLOR,
             relief="flat"
         )
-        customer_lookup_btn.pack(pady=10)
+        customer_lookup_btn.pack(pady=10)"""
 
         # Logout Button
         logout_btn = tk.Button(

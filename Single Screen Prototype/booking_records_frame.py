@@ -15,6 +15,8 @@ class BookingRecordsFrame(tk.Frame):
     def __init__(self, parent, controller: "HotelApp"):
         super().__init__(parent, bg="#2C3E50")
         self.controller = controller
+        self.sort_column = None
+        self.sort_reverse = False
 
         self.hotel = getattr(controller, "hotel", None)
         if self.hotel is None:
@@ -172,6 +174,7 @@ class BookingRecordsFrame(tk.Frame):
             "check_in",
             "check_out",
             "total_price",
+            "is_paid",
             "status",
         )
 
@@ -180,10 +183,11 @@ class BookingRecordsFrame(tk.Frame):
 
         headings = [
             "Res ID", "Guest ID", "Guest", "Room ID", "Room #",
-            "Check-in", "Check-out", "Total", "Status"
+            "Check-in", "Check-out", "Total", "Paid?", "Status"
         ]
+
         for col, head in zip(columns, headings):
-            self.tree.heading(col, text=head)
+            self.tree.heading(col, text=head, command=lambda c=col: self._sort_by_column(c))
             self.tree.column(col, width=100)
 
         # Open Edit Dialog on double-click
@@ -254,6 +258,36 @@ class BookingRecordsFrame(tk.Frame):
             show_active=self.show_active_var.get(),
         )
 
+        self.current_page.set(1)
+        self._update_page()
+
+    def _sort_by_column(self, col_name):
+        """Sorts visible reservation records by column header click."""
+        try:
+            col_index = self.tree["columns"].index(col_name)
+        except ValueError:
+            return
+
+        # Toggle sorting direction if same column
+        if self.sort_column == col_name:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col_name
+            self.sort_reverse = False
+
+        # Attempt numeric sort when appropriate
+        def sort_key(row):
+            value = row[col_index]
+            # Try converting numeric-looking values
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return value
+
+        # Sort internal rows
+        self.result_rows.sort(key=sort_key, reverse=self.sort_reverse)
+
+        # Restart pagination on page 1
         self.current_page.set(1)
         self._update_page()
 

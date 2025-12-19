@@ -395,6 +395,7 @@ class ReservationFormFrame(tk.Frame):
 
         #Selected room label
         self.selected_room_var = tk.StringVar(value="No room selected")
+        self.selected_room_id = None
 
         tk.Label(
             reserve_frame,
@@ -623,18 +624,21 @@ class ReservationFormFrame(tk.Frame):
     def update_price_breakdown(self):
         """Recalculate and display price breakdown when room or dates change."""
         try:
-            # Must have a selected room first
-            if not hasattr(self, "selected_room_id"):
+            # No room chosen yet → clear all values
+            if not self.selected_room_id:
+                self.price_per_night_var.set("")
+                self.price_nights_var.set("")
+                self.price_subtotal_var.set("")
+                self.price_tax_var.set("")
+                self.price_total_var.set("")
                 return
 
-            room_id = self.selected_room_id
-            nightly_price = self.controller.db.get_room_price(room_id)
+            nightly_price = self.controller.db.get_room_price(self.selected_room_id)
 
-            # Parse check-in/out ISO strings
             d1 = date(self.ci_year.get(), self.ci_month.get(), self.ci_day.get())
             d2 = date(self.co_year.get(), self.co_month.get(), self.co_day.get())
-
             nights = (d2 - d1).days
+
             if nights <= 0:
                 return
 

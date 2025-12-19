@@ -31,7 +31,7 @@ class EditReservationDialog(tk.Toplevel):
         self.check_in_str = reservation_values[5]
         self.check_out_str = reservation_values[6]
         self.total_price = float(reservation_values[7])
-        self.status = reservation_values[8]
+        self.status = reservation_values[9]
 
         # Convert dates
         self.check_in_date = datetime.strptime(self.check_in_str, "%Y-%m-%d").date()
@@ -88,41 +88,49 @@ class EditReservationDialog(tk.Toplevel):
     def load_reservation_data(self):
         """
         Configure which buttons are visible/enabled based on
-        the reservation status, current date/time, and rules.
+        reservation status, current date/time, and rules.
         """
 
-        # Build a time object from HotelManager's CHECKIN_HOUR (e.g. 14 for 2 PM)
+        # Hotel-defined check-in cutoff (e.g., 14 => 2 PM)
         checkin_cutoff = time(self.hotel.CHECKIN_HOUR, 0)
 
-        # Check-in allowed on the check-in date at/after the cutoff
-        can_check_in_today = (
-            self.today == self.check_in_date and
-            self.now_time >= checkin_cutoff
+        # ============ CHECK-IN LOGIC ======================
+        # Condition 1: Today == Check-in AND time >= cutoff
+        allow_today = (
+                self.today == self.check_in_date and
+                self.now_time >= checkin_cutoff
         )
 
-        # Optional grace logic: allow check-in the next day if
-        # there is at least one more night and it's already past the cutoff
-        can_check_in_yesterday = (
-            self.today == (self.check_in_date + timedelta(days=1)) and
-            (self.check_out_date - self.today).days >= 1 and
-            self.now_time >= checkin_cutoff
+        # Condition 2: Today is the day AFTER check-in (yesterday's reservation)
+        allow_yesterday = (
+                self.today == (self.check_in_date + timedelta(days=1))
         )
 
-        self.show_check_in_btn = (
-            (can_check_in_today or can_check_in_yesterday) and
-            self.status in ("Confirmed", "Late")
+        allowed_statuses = (
+            "Confirmed",
+            "Reserved",
+            "Late",
+            "Late Reservation"
         )
 
-        self.show_check_out_btn = (
-            self.status in ("Checked-in", "Late Check-out") and
-            self.today == self.check_out_date
+        in_allowed_status = self.status in allowed_statuses
+
+        can_check_in = (
+                (allow_today or allow_yesterday) and in_allowed_status
         )
 
-        # "Active" means not already closed/cancelled
+
+        # ============ CHECK-OUT LOGIC ======================
+        can_check_out = (
+                self.status in ("Checked-in", "Late Check-out")
+                and self.today == self.check_out_date
+        )
+
+        # Active means not permanently closed
         self.is_active_reservation = self.status not in ("Complete", "Cancelled")
 
         # --- Buttons ---
-        if self.show_check_in_btn:
+        if can_check_in:
             tk.Button(
                 self.btn_frame,
                 text="Check-In",
@@ -132,7 +140,7 @@ class EditReservationDialog(tk.Toplevel):
                 command=self.check_in_action
             ).pack(side="left", padx=5)
 
-        if self.show_check_out_btn:
+        if can_check_out:
             tk.Button(
                 self.btn_frame,
                 text="Check-Out",

@@ -568,7 +568,11 @@ class DatabaseManager:
         occ_placeholders = ", ".join(["?"] * len(occ))
 
         query = f"""
-            SELECT r.room_id, r.room_number, r.capacity, r.price
+            SELECT r.room_id,
+                   r.room_number,
+                   r.capacity,
+                   r.price,
+                   r.smoking
             FROM rooms r
             LEFT JOIN reservations res
                 ON r.room_id = res.room_id
@@ -616,7 +620,9 @@ class DatabaseManager:
                 "SELECT r.reservation_id, r.guest_id, "
                 "g.first_name || ' ' || g.last_name AS guest_name, "
                 "r.room_id, rm.room_number, r.check_in_date, "
-                "r.check_out_date, r.total_price, r.status "
+                "r.check_out_date, r.total_price, "
+                "r.is_paid, "  # <--- NEW COLUMN
+                "r.status "
                 "FROM reservations r "
                 "LEFT JOIN guests g ON r.guest_id = g.guest_id "
                 "LEFT JOIN rooms rm ON r.room_id = rm.room_id "
@@ -670,7 +676,7 @@ class DatabaseManager:
             cur.execute(query, params)
             rows = cur.fetchall()
 
-            # Normalize result format
+            # Normalize result format for UI table
             results = [
                 (
                     r["reservation_id"],
@@ -681,6 +687,7 @@ class DatabaseManager:
                     r["check_in_date"],
                     r["check_out_date"],
                     f"{r['total_price']:.2f}" if isinstance(r["total_price"], (float, int)) else r["total_price"],
+                    "Yes" if r["is_paid"] == 1 else "No",  # <--- CLEAN DISPLAY
                     r["status"],
                 )
                 for r in rows
@@ -1000,83 +1007,193 @@ class DatabaseManager:
             if now >= check_in_datetime + timedelta(hours=24):
                 if self.hotel_manager:
                     self.hotel_manager.cancel_reservation(reservation_id)
-                else:
-                    print("[Warning] HotelManager not linked to DatabaseManager.")
 
         conn.close()
 
     def get_manager_metrics(self):
         """
-        Return basic metrcis for manager dashboard as a dict: 
-        - total rooms
-        - available_rooms_today
-        - active_reservatins (Confimred + Checked-in)
-        -cancelled reservations
-        - revenue (sum of total rice for non cancelled reservations)
-        
+        Returns a COMPLETE metrics dictionary for the new dashboard.
         """
         conn = self.connect()
         cur = conn.cursor()
+
+        today = date.today().isoformat()
+
         try:
-            # 1) Total Rooms
-            cur.execute("Select Count(*) From rooms")
+            # --- BASIC ROOM DATA ---
+            cur.execute("SELECT COUNT(*) FROM rooms")
             total_rooms = cur.fetchone()[0] or 0
 
-            # 2) Rooms Available Today
-            today = date.today().isoformat()
-            cur.execute(
-                """
-                Select Count(*)
-                From rooms rm
-                Where Not Exists(
-                Select 1
-                From reservations r
-                Where r.room_id = rm.room_id
-                    And r.status != 'Cancelled'
-                    And r.check_in_date <= ?
-                    And r.check_out_date > ?
+            cur.execute("SELECT COUNT(*) FROM rooms WHERE smoking = 1")
+            total_smoking_rooms = cur.fetchone()[0] or 0
+
+            # Rooms available today (not in any active reservation window)
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM rooms rm
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM reservations r
+                    WHERE r.room_id = rm.room_id
+                      AND r.status != 'Cancelled'
+                      AND r.check_in_date <= ?
+                      AND r.check_out_date > ?
                 )
-                """,
-                (today, today)
-            )
+            """, (today, today))
             available_rooms_today = cur.fetchone()[0] or 0
 
-            # 3) Active reservations (Confirmed + Checked-in)
-            cur.execute(
-                """
+            rooms_occupied_today = total_rooms - available_rooms_today
+
+            # --- OCCUPANCY RATE ---
+            occupancy_rate = (rooms_occupied_today / total_rooms * 100) if total_rooms else 0
+
+            # --- ACTIVE RESERVATIONS ---
+            cur.execute("""
                 SELECT COUNT(*)
                 FROM reservations
                 WHERE status IN ('Confirmed', 'Checked-in')
-                """
-            )
+            """)
             active_reservations = cur.fetchone()[0] or 0
 
-            # 4) Cancelled Reservations
-            cur.execute(
-                """
+            # --- CANCELLED ---
+            cur.execute("""
                 SELECT COUNT(*)
                 FROM reservations
                 WHERE status = 'Cancelled'
-                """
-            )
+            """)
             cancelled_reservations = cur.fetchone()[0] or 0
 
-            # 5) Revenue
-            cur.execute(
-                """
+            # --- TOTAL REVENUE ---
+            cur.execute("""
                 SELECT COALESCE(SUM(total_price), 0)
                 FROM reservations
                 WHERE status != 'Cancelled'
-                """
-            )
+            """)
             revenue = cur.fetchone()[0] or 0.0
+
+            # --- ADR (Average Daily Rate) ---
+            cur.execute("""
+                SELECT 
+                    COALESCE(SUM(total_price), 0) AS revenue,
+                    COALESCE(SUM(julianday(check_out_date) - julianday(check_in_date)), 0) AS nights
+                FROM reservations
+                WHERE status != 'Cancelled'
+            """)
+            rev, nights = cur.fetchone()
+            adr = (rev / nights) if nights else 0
+
+            # --- RevPAR ---
+            revpar = (revenue / total_rooms) if total_rooms else 0
+
+            # --- CHECK-INS TODAY ---
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM reservations
+                WHERE check_in_date = ?
+                  AND status = 'Confirmed'
+            """, (today,))
+            checkins_today = cur.fetchone()[0] or 0
+
+            # --- CHECK-OUTS TODAY ---
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM reservations
+                WHERE check_out_date = ?
+                  AND status = 'Checked-in'
+            """, (today,))
+            checkouts_today = cur.fetchone()[0] or 0
+
+            # --- UPCOMING RES (NEXT 7 DAYS) ---
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM reservations
+                WHERE status != 'Cancelled'
+                  AND check_in_date BETWEEN ? AND date(?, '+7 days')
+            """, (today, today))
+            upcoming_res = cur.fetchone()[0] or 0
+
+            # --- ROOMS OUT OF SERVICE ---
+            cur.execute("SELECT COUNT(*) FROM rooms WHERE is_available = 0")
+            rooms_oos = cur.fetchone()[0] or 0
+
+            # --- AVERAGE STAY LENGTH ---
+            cur.execute("""
+                SELECT AVG(julianday(check_out_date) - julianday(check_in_date))
+                FROM reservations
+                WHERE status != 'Cancelled'
+            """)
+            avg_stay = cur.fetchone()[0] or 0
+
+            # --- PAYMENTS TODAY (assumed collected at check-in) ---
+            cur.execute("""
+                SELECT COALESCE(SUM(total_price), 0)
+                FROM reservations
+                WHERE is_paid = 1
+                  AND check_in_date = ?
+                  AND status != 'Cancelled'
+            """, (today,))
+            payments_today = cur.fetchone()[0] or 0.0
+
+            # --- OUTSTANDING BALANCE ---
+            cur.execute("""
+                SELECT COALESCE(SUM(total_price), 0)
+                FROM reservations
+                WHERE is_paid = 0
+                  AND status != 'Cancelled'
+            """)
+            outstanding_bal = cur.fetchone()[0] or 0.0
+
+            # --- POPULAR ROOM TYPE ---
+            cur.execute("""
+                SELECT rm.room_type, COUNT(*)
+                FROM reservations r
+                JOIN rooms rm ON rm.room_id = r.room_id
+                WHERE r.status != 'Cancelled'
+                GROUP BY rm.room_type
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            popular_room = row[0] if row else "N/A"
+
+            # --- AVG GROUP SIZE ---
+            cur.execute("""
+                SELECT AVG(num_guests)
+                FROM reservations
+                WHERE status != 'Cancelled'
+            """)
+            avg_group = cur.fetchone()[0] or 0
+
+            # --- SMOKING RATIO ---
+            smoking_ratio = (total_smoking_rooms / total_rooms * 100) if total_rooms else 0
 
             return {
                 "total_rooms": total_rooms,
                 "available_rooms_today": available_rooms_today,
+                "rooms_occupied_today": rooms_occupied_today,
+                "occupancy_rate": occupancy_rate,
+
                 "active_reservations": active_reservations,
                 "cancelled_reservations": cancelled_reservations,
+
                 "revenue": revenue,
+                "adr": adr,
+                "revpar": revpar,
+
+                "checkins_today": checkins_today,
+                "checkouts_today": checkouts_today,
+                "upcoming_res": upcoming_res,
+
+                "rooms_oos": rooms_oos,
+                "avg_stay": avg_stay,
+
+                "payments_today": payments_today,
+                "outstanding_bal": outstanding_bal,
+
+                "popular_room": popular_room,
+                "avg_group_size": avg_group,
+                "smoking_ratio": smoking_ratio,
             }
+
         finally:
             conn.close()
